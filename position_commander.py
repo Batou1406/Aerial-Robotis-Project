@@ -55,6 +55,7 @@ def slightly_more_complex_usage():
 
             # Move relative to the current position
             pc.right(1.0)
+            print('test')
 
             # Go to a coordinate and use default height
             pc.go_to(0.0, 0.0)
