@@ -142,7 +142,7 @@ class LoggingExample:
                     print('z new = ', z_new,  'front = ', front,  'left = ', left) #, 'y = ', y) #, 'z = ', z)
 
                     if front < 400 and move_right == 0:
-                        print('OBSTACLE AVOIDANCE')
+                        print('OBSTACLE AVOIDANCE + test')
                         mc.start_right(0.1)
                         move_right = 1
                     elif front >= 400 and move_right == 1:
