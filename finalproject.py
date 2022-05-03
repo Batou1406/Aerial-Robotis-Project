@@ -121,6 +121,9 @@ class LoggingExample:
     def returnToStart(self):
         return None
 
+    def obstacleAvoidance():
+        return None
+
     def flySearch(self, id):
         """ Example of simple logico to make the drone fly in a square
         trajectory at fixed speed"""
