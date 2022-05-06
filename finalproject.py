@@ -16,6 +16,13 @@ uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
 logging.basicConfig(level=logging.ERROR)
 
 
+HEIGHT_DRONE = 300
+FORWARD = 0
+BACKWARD = 1
+LEFT = 2
+RIGHT = 3
+
+
 [start, landingPadDetected, return, startingPadDetected, finish]
 
 class LoggingExample:
@@ -115,7 +122,54 @@ class LoggingExample:
     def explore(self):
         return None
 
-    def landing(self):
+    def landing(self):      #Fonction called when landing pad is detected below the drone
+        
+
+        if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 0:
+            MotionCommander.stop()
+            self.landing_state = 1
+
+        if self.landing_state == 1:
+
+            if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
+                MotionCommander.back(0.15, velocity = 0.5)      #Check when the drone start going backaward, what's the distance to be in center of the landing pad (I assumed 15cm)
+                MotionCommander.start_right(velocity = 0.5)
+                self.direction = RIGHT
+            elif self.direction == BACKWARD:
+                MotionCommander.forward(0.15, velocity = 0.5)
+                MotionCommander.start_right(velocity = 0.5)
+                self.direction = RIGHT
+            elif self.direction == RIGHT:
+                MotionCommander.left(0.15, velocity = 0.5)
+                MotionCommander.start_forward(velocity = 0.5)
+                self.direction = FORWARD
+            elif self.direction == LEFT:
+                MotionCommander.right(0.15, velocity = 0.5)
+                MotionCommander.start_forward(velocity = 0.5)
+                self.direction = FORWARD
+
+            self.landing_state = 2
+
+
+        if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 2:
+            MotionCommander.stop()
+            self.landing_state = 3
+            
+        if self.landing_state == 3:
+
+            if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
+                MotionCommander.back(0.15, velocity = 0.5)
+            elif self.direction == RIGHT:
+                MotionCommander.left(0.15, velocity = 0.5)
+
+
+            self.direction = 0
+            MotionCommander.stop()
+            MotionCommander.land()
+            self.explorationState = startingPadDetected
+            self.landing_state = 0                              #Drone landed on the landing pad, variabe reinint for next call of the function
+
+
         return None
 
     def returnToStart(self):
@@ -139,6 +193,8 @@ class LoggingExample:
                     self.left = data[4]
                     self.right = data[5]
                     self.back = data[6]
+                    self.landing_state = 0
+                    self.direction = 0
 
                     if(self.explorationState == start):
                         self.explore()
