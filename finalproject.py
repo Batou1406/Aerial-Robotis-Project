@@ -172,8 +172,59 @@ class LoggingExample:
 
         return None
 
-    def returnToStart(self):
+    def returnToStart(self, start):
+        while ( self.logs[self.count][0] > start[0]):
+            if (self.logs[self.count][3]>400):
+                LoggingExample.obstacleAvoidance_forward()
+            else :
+                MotionCommander.start_forward(velocity=0.2)
+        if (self.logs[self.count][1] < start[1]):
+            while (self.logs[self.count][1] < start[1]):
+                if (self.logs[self.count][4]>400):
+                    LoggingExample.obstacleAvoidance_left()
+                else :
+                    MotionCommander.start_left(velocity=0.2)
+        else:
+            while (self.logs[self.count][1] > start[1]):
+                if (self.logs[self.count][5]>400):
+                    LoggingExample.obstacleAvoidance_right()
+                else :
+                    MotionCommander.start_right(velocity=0.2)
+        self.explorationState = startingPadDetected
         return None
+
+    def obstacleAvoidance_forward(self):  
+        y1 = self.logs[self.count][1]
+        while (self.logs[self.count][3] > 400):
+            MotionCommander.start_right(velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = -0.1, distance_z_m = 0,velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        while (self.logs[self.count][4] > 400):
+            MotionCommander.start_forward(velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = y1-self.y, distance_z_m = 0,velocity=0.2)
+
+    def obstacleAvoidance_left(self):  
+        x1 = self.logs[self.count][0]
+        while (self.logs[self.count][4] > 400):
+            MotionCommander.start_forward(velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
+        while (self.logs[self.count][6] > 400):
+            MotionCommander.start_forward(velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+
+    def obstacleAvoidance_right(self):  
+        x1 = self.logs[self.count][0]
+        while (self.logs[self.count][5] > 400):
+            MotionCommander.start_forward(velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = -0.1, distance_z_m = 0,velocity=0.2)
+        while (self.logs[self.count][6] > 400):
+            MotionCommander.start_forward(velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = -0.1, distance_z_m = 0,velocity=0.2)
+        MotionCommander.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
 
     def obstacleAvoidance():
         return None
