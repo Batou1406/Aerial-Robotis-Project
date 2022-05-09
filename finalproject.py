@@ -16,20 +16,20 @@ uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
 logging.basicConfig(level=logging.ERROR)
 
 
-HEIGHT_DRONE = 300
+HEIGHT_DRONE = 600
 FORWARD = 0
 BACKWARD = 1
 LEFT = 2
 RIGHT = 3
 
-
-[start, landingPadDetected, return, startingPadDetected, finish]
+# [start, landingPadDetected, return, startingPadDetected, finish]
 
 class LoggingExample:
 
     def __init__(self, link_id):
         """ Initialize and run the example with the specified link_id """
         self.count = 0
+        self.step = 0
         # Initialize cf object
         self._cf = Crazyflie(rw_cache='./cache')
         # Connect some callbacks from the Crazyflie API
@@ -42,7 +42,7 @@ class LoggingExample:
         # Fly a square
         self.is_connected = True
         #flag
-        self.explorationState = start
+        # self.explorationState = start
         self.obstacleDetected = False
         self.x = 0
         self.y = 0
@@ -51,6 +51,7 @@ class LoggingExample:
         self.left = 0
         self.right = 0
         self.back = 0
+        self.x_zone=0
 
         self.flySearch(link_id)
 
@@ -119,115 +120,267 @@ class LoggingExample:
         filepath = os.path.join(os.getcwd(),'logs',filename)
         np.savetxt(filepath, self.logs, delimiter=',')
 
-    def explore(self):
-        return None
+    # def explore(self, x0, y0, mc):
+    #     while(self.logs[self.count][0] < (1.0-x0)):
+    #         mc.start_forward(velocity=0.2)
+    #         print('go forward 1m')
+    #         print('x = ', self.x)
+    #         print('x0 =', x0)
+    #         self.x_zone = self.logs[self.count][0]
+    #         # mc.start_left(velocity=0.2)
+    #         print('-y+y0 =',-self.logs[self.count][1]+y0 )
+    #         print('self x',self.logs[self.count][0] , 'x_zone + 0.3', self.x_zone+0.3)
+    #     while((-self.logs[self.count][1]+y0>0) and (self.step==0)):
+    #         mc.start_left(velocity=0.2)
+    #         #self.obstacleAvoidance_left(mc)
+    #         print('go left 1')
+    #     self.step=1
+    #     print('step1')
+    #     while((self.logs[self.count][0] < self.x_zone+0.3) and (self.step==1)):
+    #         mc.start_forward(velocity=0.2)
+    #         print('if step 1')
+    #     self.step=2
+    #     print('step2')
+    #     while((-self.logs[self.count][0]+y0 < 0.5) and (self.step==2)):
+    #         mc.start_right(velocity=0.2)
+    #         #self.obstacleAvoidance_right(mc)
+    #         print('if step 2')
+    #     self.step=3
+    #     print('step3')
+            # if(self.x < self.x_zone+0.6 and self.step==3):
+            #     mc.start_forward(velocity=0.2)
+            #     print('if step 3')
+            # elif(self.x >= self.x_zone+0.6 and self.step==3):
+            #     self.step=4
+            #     print('step4')
+            # if(-self.y+y0>0 and self.step==4):
+            #     mc.start_left(velocity=0.2)
+            #     #self.obstacleAvoidance_left(mc)
+            #     print('if step 4')
+            # elif(-self.y+y0<=0 and self.step==4):
+            #     self.step=5
+            #     print('step5')
+            # if(self.x < self.x_zone+0.9 and self.step==5):
+            #     mc.start_forward(velocity=0.2)
+            #     print('if step 5')
+            # elif(self.x >= self.x_zone+0.9 and self.step==5):
+            #     self.step=6
+            #     print('step6')
+            # if(-self.y+y0 < 0.5 and self.step==6):
+            #     mc.start_right(velocity=0.2)
+            #     #self.obstacleAvoidance_right(mc)
+            #     print('if step 6')
+            # elif(-self.y+y0 >= 0.5 and self.step==6):
+            #     self.step=7
+            #     print('step7')
+            # if(self.x < self.x_zone+1.2 and self.step==7):
+            #     mc.start_forward(velocity=0.2)
+            #     print('if step 7')
+            #     self.step=8
+            #     print('step8')
+            # if(-self.y+y0>0 and self.step==8):
+            #     mc.start_left(velocity=0.2)
+            #     #self.obstacleAvoidance_left(mc)
+            #     print('if step 8')
+            # elif(-self.y+y0<=0 and self.step==8):
+            #     mc.land()
+            #     print('land')
 
-    def landing(self):      #Fonction called when landing pad is detected below the drone
+    def explore(self, x0, y0, mc):
+        if(self.x < (1-x0)):
+            mc.start_forward(velocity=0.2)
+            self.x_zone = self.x
+        else:
+            if((-self.y+y0>0) and (self.step==0)):
+                mc.start_left(velocity=0.2)
+                if self.z < 585:
+                    self.direction=LEFT
+                    self.landing(mc)
+                if(self.logs[self.count][4] < 300):
+                    self.obstacleAvoidance_left(mc)
+            elif((-self.y+y0<=0) and (self.step==0)):
+                self.step=1
+            if((self.x < self.x_zone+0.3) and (self.step==1)):
+                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+            elif((self.x >= self.x_zone+0.3) and (self.step==1)):
+                self.step=2
+            if((-self.y+y0 < 0.4) and (self.step==2)):
+                mc.start_right(velocity=0.2)
+                if self.z < 585:
+                    self.direction=RIGHT
+                    self.landing(mc)
+                if(self.logs[self.count][5] < 300):
+                    self.obstacleAvoidance_right(mc)
+            elif((-self.y+y0 >= 0.4) and (self.step==2)):
+                self.step=3
+            if(self.x < self.x_zone+0.6 and self.step==3):  
+                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)                
+            elif(self.x >= self.x_zone+0.6 and self.step==3):
+                self.step=4
+            if(-self.y+y0>0 and self.step==4):
+                mc.start_left(velocity=0.2)
+                if self.z < 585:
+                    self.direction=LEFT
+                    self.landing(mc)
+                if(self.logs[self.count][4] < 300):
+                    self.obstacleAvoidance_left(mc)
+            elif(-self.y+y0<=0 and self.step==4):
+                self.step=5
+            if(self.x < self.x_zone+0.9 and self.step==5):
+                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+            elif(self.x >= self.x_zone+0.9 and self.step==5):
+                self.step=6
+            if(-self.y+y0 < 0.4 and self.step==6):
+                mc.start_right(velocity=0.2)
+                if self.z < 585:
+                    self.direction=RIGHT
+                    self.landing(mc)
+                if(self.logs[self.count][5] < 300):
+                    self.obstacleAvoidance_right(mc)
+            elif(-self.y+y0 >= 0.4 and self.step==6):
+                self.step=7
+            if(self.x < self.x_zone+1.2 and self.step==7):
+                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+            if(self.x > self.x_zone+1.2 and self.step==7):
+                self.step=8
+            if(-self.y+y0>0 and self.step==8):
+                mc.start_left(velocity=0.2)
+                if self.z < 585:
+                    self.direction=LEFT
+                    self.landing(mc)
+                if(self.logs[self.count][4] < 300):
+                    self.obstacleAvoidance_left(mc)
+            elif(-self.y+y0<=0 and self.step==8):
+                mc.land()
         
 
+    def landing(self, mc):      #Fonction called when landing pad is detected below the drone
+        
+        print('la fct de balou elle est éclaté')
         if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 0:
-            MotionCommander.stop()
+            mc.stop()
             self.landing_state = 1
 
         if self.landing_state == 1:
 
             if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
-                MotionCommander.back(0.15, velocity = 0.5)      #Check when the drone start going backaward, what's the distance to be in center of the landing pad (I assumed 15cm)
-                MotionCommander.start_right(velocity = 0.5)
+                mc.back(0.15, velocity = 0.5)      #Check when the drone start going backaward, what's the distance to be in center of the landing pad (I assumed 15cm)
+                mc.start_right(velocity = 0.5)
                 self.direction = RIGHT
             elif self.direction == BACKWARD:
-                MotionCommander.forward(0.15, velocity = 0.5)
-                MotionCommander.start_right(velocity = 0.5)
+                mc.forward(0.15, velocity = 0.5)
+                mc.start_right(velocity = 0.5)
                 self.direction = RIGHT
             elif self.direction == RIGHT:
-                MotionCommander.left(0.15, velocity = 0.5)
-                MotionCommander.start_forward(velocity = 0.5)
+                mc.left(0.15, velocity = 0.5)
+                mc.start_forward(velocity = 0.5)
                 self.direction = FORWARD
             elif self.direction == LEFT:
-                MotionCommander.right(0.15, velocity = 0.5)
-                MotionCommander.start_forward(velocity = 0.5)
+                mc.right(0.15, velocity = 0.5)
+                mc.start_forward(velocity = 0.5)
                 self.direction = FORWARD
 
             self.landing_state = 2
 
 
         if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 2:
-            MotionCommander.stop()
+            mc.stop()
             self.landing_state = 3
             
         if self.landing_state == 3:
 
             if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
-                MotionCommander.back(0.15, velocity = 0.5)
+                mc.back(0.15, velocity = 0.5)
             elif self.direction == RIGHT:
-                MotionCommander.left(0.15, velocity = 0.5)
+                mc.left(0.15, velocity = 0.5)
 
 
             self.direction = 0
-            MotionCommander.stop()
-            MotionCommander.land()
-            self.explorationState = startingPadDetected
+            mc.stop()
+            mc.land()
+            #self.explorationState = startingPadDetected
             self.landing_state = 0                              #Drone landed on the landing pad, variabe reinint for next call of the function
 
 
         return None
 
-    def returnToStart(self, start):
-        while ( self.logs[self.count][0] > start[0]):
-            if (self.logs[self.count][3]>400):
-                LoggingExample.obstacleAvoidance_forward()
-            else :
-                MotionCommander.start_forward(velocity=0.2)
-        if (self.logs[self.count][1] < start[1]):
-            while (self.logs[self.count][1] < start[1]):
-                if (self.logs[self.count][4]>400):
-                    LoggingExample.obstacleAvoidance_left()
-                else :
-                    MotionCommander.start_left(velocity=0.2)
-        else:
-            while (self.logs[self.count][1] > start[1]):
-                if (self.logs[self.count][5]>400):
-                    LoggingExample.obstacleAvoidance_right()
-                else :
-                    MotionCommander.start_right(velocity=0.2)
-        self.explorationState = startingPadDetected
-        return None
+    # def returnToStart(self, start):
+    #     while ( self.logs[self.count][0] > start[0]):
+    #         if (self.logs[self.count][3]>400):
+    #             LoggingExample.obstacleAvoidance_forward()
+    #         else :
+    #             MotionCommander.start_forward(velocity=0.2)
+    #     if (self.logs[self.count][1] < start[1]):
+    #         while (self.logs[self.count][1] < start[1]):
+    #             if (self.logs[self.count][4]>400):
+    #                 LoggingExample.obstacleAvoidance_left()
+    #             else :
+    #                 MotionCommander.start_left(velocity=0.2)
+    #     else:
+    #         while (self.logs[self.count][1] > start[1]):
+    #             if (self.logs[self.count][5]>400):
+    #                 LoggingExample.obstacleAvoidance_right()
+    #             else :
+    #                 MotionCommander.start_right(velocity=0.2)
+    #     self.explorationState = startingPadDetected
+    #     return None
 
-    def obstacleAvoidance_forward(self):  
+    def obstacleAvoidance_forward(self, mc):  
+        print('AVOIDANCE1')
         y1 = self.logs[self.count][1]
-        while (self.logs[self.count][3] > 400):
-            MotionCommander.start_right(velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = -0.1, distance_z_m = 0,velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-        while (self.logs[self.count][4] > 400):
-            MotionCommander.start_forward(velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = y1-self.y, distance_z_m = 0,velocity=0.2)
+        while (self.logs[self.count][3] < 300):
+            mc.start_left(velocity=0.2)
+            print('AVOIDANCE1.0')
+            print(self.logs[self.count][3])
+        mc.left(distance_m = 0.07, velocity=0.2)
+        mc.forward(distance_m= 0.3,velocity=0.2)
+        while (self.logs[self.count][5] < 500):
+            print(self.logs[self.count][4])
+            mc.start_forward(velocity=0.2)
+        mc.forward(distance_m= 0.1,velocity=0.2)
+        mc.right(distance_m = -y1+self.logs[self.count][1],velocity=0.2)
 
-    def obstacleAvoidance_left(self):  
+    def obstacleAvoidance_left(self, mc): 
         x1 = self.logs[self.count][0]
-        while (self.logs[self.count][4] > 400):
-            MotionCommander.start_forward(velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
-        while (self.logs[self.count][6] > 400):
-            MotionCommander.start_forward(velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        while(self.logs[self.count][4] < 300):
+            print('AVOIDANCE_left')
+            print('sensor = ', self.logs[self.count][4] )
+            mc.start_forward(velocity=0.2)
+        mc.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        mc.move_distance(distance_x_m= 0, distance_y_m = 0.3, distance_z_m = 0,velocity=0.2)
+        while(self.logs[self.count][6] < 300):
+            print('AVOIDANCE2.1')
+            mc.start_left(velocity=0.2)
+        mc.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
+        mc.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
 
-    def obstacleAvoidance_right(self):  
+    def obstacleAvoidance_right(self,mc): 
+        print('AVOIDANCE3')
+ 
         x1 = self.logs[self.count][0]
-        while (self.logs[self.count][5] > 400):
-            MotionCommander.start_forward(velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = -0.1, distance_z_m = 0,velocity=0.2)
-        while (self.logs[self.count][6] > 400):
-            MotionCommander.start_forward(velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= 0, distance_y_m = -0.1, distance_z_m = 0,velocity=0.2)
-        MotionCommander.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        while (self.logs[self.count][5] < 300):
+            print(self.logs[self.count][5])
+            mc.start_forward(velocity=0.2)
+            print('AVOIDANCE3.0')
+        mc.forward(distance_m= 0.1, velocity=0.2)
+        mc.right(distance_m = 0.3, velocity=0.2)
+        while (self.logs[self.count][6] < 400):
+            mc.start_right(velocity=0.2)
+            print('AVOIDANCE3.1')
+            print(self.logs[self.count][6])
+        print('xm = ', x1-self.logs[self.count][0])
+        print('x1 = ', x1)
+        print('x_pos', self.logs[self.count][0])
+        mc.right(distance_m = 0.1, velocity=0.2)
+        mc.back(distance_m= -x1+self.logs[self.count][0], velocity=0.2)
 
     def obstacleAvoidance():
         return None
+    def test(self, mc):
+        mc.start_forward(0.2)
+        if(self.logs[self.count][3] < 300):
+            self.obstacleAvoidance_forward(mc)
+
 
     def flySearch(self, id):
         """ Example of simple logico to make the drone fly in a square
@@ -235,7 +388,13 @@ class LoggingExample:
         # Sync with drone
         with SyncCrazyflie(id, cf=self._cf) as scf:
             with MotionCommander(scf) as mc:
-                while(self.explorationState != finish):
+                x0 = 0.3
+                y0 = 0.45
+                mc.up(0.3)
+                time.sleep(2)
+                # while(self.explorationState != finish):
+                while(1):
+                    time.sleep(0.1)
                     data = self.logs[self.count][:]
                     self.x = data[0]
                     self.y = data[1]
@@ -246,24 +405,30 @@ class LoggingExample:
                     self.back = data[6]
                     self.landing_state = 0
                     self.direction = 0
+                    # if self.z < 280:
+                    #     print('STOP')
+                    #     mc.land()        
+                    #     # self._disconnected
 
-                    if(self.explorationState == start):
-                        self.explore()
-                    elif(self.explorationState == landingPadDetected):
-                        self.landing()
-                    elif(self.explorationState == return):
-                        self.returnToStart()
-                    elif(self.explorationState == startingPadDetected):
-                        self.landing()
-                    elif(self.explorationState == finish):
-                        self._disconnected
-                    else :
-                        print("Error : wrong state machine")
+
+                    # print('z =', self.z)
+                    # if(self.explorationState == start):
+                    self.explore(x0,y0,mc)
+                    #self.test(mc)
+                    #print('step:', self.step)
+                    #print(self.logs[self.count][6])
+                    # elif(self.explorationState == landingPadDetected):
+                    #     self.landing()
+                    # elif(self.explorationState == return):
+                    #     self.returnToStart()
+                    # elif(self.explorationState == startingPadDetected):
+                    #     self.landing()
+                    # elif(self.explorationState == finish):
+                    #     self._disconnected
+                    # else :
+                    #     print("Error : wrong state machine")
+
         self._disconnected
-
-
-
-
 if __name__ == '__main__':
     # Initialize the low-level drivers (don't list the debug drivers)
     cflib.crtp.init_drivers()
