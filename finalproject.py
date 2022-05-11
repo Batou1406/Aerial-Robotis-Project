@@ -23,7 +23,7 @@ LEFT = 2
 RIGHT = 3
 TRESHOLD = 300
 PAD_TRESHOLD_RISE = 590
-PAD_TRESHOLD_FALL = 630
+PAD_TRESHOLD_FALL = 615
 X0 = 0.3
 Y0 = 0.3
 START_ZONE_X = 1
@@ -31,32 +31,18 @@ MAP_SIZE_X = 3
 MAP_SIZE_Y = 0.6
 EXPLORESPEED = 0.2
 LANDINGSPEED = 0.1
+GOTOSPEED = 0.1
 TurnRightDict = {
   'FRONT': 'RIGHT',
   'RIGHT': 'BACK',
   'BACK': 'LEFT',
   'LEFT': 'FRONT'
 }
-TurnBackDict = {
-  'FRONT': 'BACK',
-  'RIGHT': 'LEFT',
-  'BACK': 'FRONT',
-  'LEFT': 'RIGHT'
-}
 dirToOrderDict = {
   'FRONT': [1,0],
-  'RIGHT': [0,0],
-  'BACK': [1,0],
+  'RIGHT': [0,-1],
+  'BACK': [-1,0],
   'LEFT': [0,1]
-}
-nextBorderDict = {
-  'FIRST_BORDER': 'SECOND_BORDER',
-  'SECOND_BORDER': 'THIRD_BORDER',
-  'THIRD_BORDER': 'FOURTH_BORDER',
-  'FOURTH_BORDER': 'FIFTH_BORDER',
-  'FIFT_BORDER': 'SIXTH_BORDER',
-  'SIXTH_BORDER': 'LAND',
-  'LAND': 'FIRST_BORDER'
 }
 
 class LoggingExample:
@@ -89,15 +75,13 @@ class LoggingExample:
         self.lastPos = [0,0]
         self.goalPos = [0,0]
         self.explorePos = [0,0]
-        self.V = [0, None]
         self.V_ref = [0, None]
+        self.landPos = [0,0,None]
         self.statusManoeuvre = 1
         self.exploreStatus = 'LEFT'
         self.landingStatus = 'LAND'
         self.padPos = [0,0]
         self.padDetected = False
-        self.landingDirection = None
-        self.landingState = 'FINDCORNER'
 
         self.flySearch(link_id)
 
@@ -195,145 +179,84 @@ class LoggingExample:
                 print('wrong state machine : explore')
 
 
-    def detectPadRise(self) :
-        if(self.z < PAD_TRESHOLD_RISE):
-            if(self.explorationState == 'START') :
-                self.explorationState = 'LANDINGPADDETECTED'
-                time.sleep(1)
-            elif(self.explorationState == 'RETURN'):
-                self.explorationState = 'STARTINGPADDETECTED'
-            self.landingDirection = self.V_ref[1]
-
-    def detectPadFall(self) :
-        if(self.z > PAD_TRESHOLD_FALL):
-            if(self.landingState == 'FINDCORNER') :
-                self.landingState = 'GOMIDDLEPAD'
-
     def detectPadBorder(self):
-        if(self.z < PAD_TRESHOLD_RISE or self.z < PAD_TRESHOLD_FALL):
-            time.sleep(1)
+        if(self.z < PAD_TRESHOLD_RISE):
+            time.sleep(0.2)
             if(self.explorationState == 'START') :
                 self.explorationState = 'LANDINGPADDETECTED'
+                self.landingStatus = 'FIRST_BORDER'
+                self.padDetected = True
+                self.landPos = [self.x, self.y,self.V_ref[1]]
             elif(self.explorationState == 'RETURN'):
                 self.explorationState = 'STARTINGPADDETECTED'
-            elif(self.explorationState == 'LANDINGPADDETECTED' or self.explorationState == 'STARTINGPADDETECTED'):
+                self.landingStatus = 'FIRST_BORDER'
                 self.padDetected = True
-                self.landingStatus = nextBorderDict[self.landingStatus]
-            else :
+                self.landPos = [self.x, self.y,self.V_ref[1]]
+            elif(self.landingStatus == 'SEARCH_THIRD_BORDER'):
+                self.landingStatus = 'THIRD_BORDER'
+                self.padDetected = True
+            else:
                 print("wrong state machine : detectPadBoarder")
 
-
-    def landing10(self,mc):
-        mc.land()
-        self.explorationState = 'LANDED'
-
-    # def landing(self,mc):
-    #     self.detectPadFall()
-    #     if(self.landingState ==  'FINDCORNER'):
-    #         mc.land()
-    #         self.explorationState='LANDED'
-    #         #self.V_ref = [LANDINGSPEED, TurnRightDict[self.landingDirection]]
-    #     elif(self.landingState ==  'GOMIDDLEPAD'):
-    #         self.landingState = 'FINDCORNER'
-    #         moveX = 0.15 if((self.landingDirection == 'FRONT') or (self.landingDirection == 'RIGHT')) else -0.15
-    #         moveY = 0.15 if((self.landingDirection == 'FRONT') or (self.landingDirection == 'LEFT')) else -0.15
-    #         mc.move_distance(moveX, moveY, 0, velocity=LANDINGSPEED)
-    #         mc.land()
-    #         print('LANDED')
-    #         if(self.explorationState == 'LANDINGPADDETECTED'):
-    #             self.explorationState = 'LANDED'
-    #         else :
-    #             self.explorationState = 'FINISH'
-    #     else :
-    #         print('Wrong state machine : landing')
-
+        if(self.z > PAD_TRESHOLD_FALL):
+            if(self.explorationState == 'LANDINGPADDETECTED' or self.explorationState == 'STARTINGPADDETECTED'):
+                if(self.landingStatus == 'FIRST_BORDER'):
+                    self.padDetected = True
+                    self.landingStatus = 'SECOND_BORDER'
+                elif(self.landingStatus == 'THIRD_BORDER'):
+                    self.padDetected = True
+                    self.landingStatus = 'FOURTH_BORDER'
+            else:
+                print("wrong state machine : detectPadBoarder")
 
     def landing(self,mc):
+        print(self.landingStatus)
         if(self.padDetected == True):
-            self.padDetected == False
-            if(self.landingStatus == 'FIRST_BORDER' or self.landingStatus == 'SECOND_BORDER' or self.landingStatus == 'FOURTH_BORDER' or self.landingStatus == 'SIXTH_BORDER'):
-                self.padPos += [self.x*dirToOrderDict[self.V_ref[1]][0], self.y*dirToOrderDict[self.V_ref[1]][1]]
-                time.sleep(1)
-        if(self.landingStatus == 'SECOND_BORDER'):
-            mc.move_distance((self.padPos[0]/2.-self.x)*dirToOrderDict[self.V_ref[1]][0], (self.padPos[1]/2.-self.y)*dirToOrderDict[self.V_ref[1]][1], 0,velocity=LANDINGSPEED)
-            time.sleep(1)
-            self.V_ref = [LANDINGSPEED,  TurnRightDict[self.V_ref[1]]]
-            self.landingStatus = 'THIRD_BORDER'
-        elif(self.landingStatus == 'FOURTH_BORDER'):
-            self.V_ref = [LANDINGSPEED,  TurnBackDict[self.V_ref[1]]]
-        elif(self.landingStatus == 'SIXTH_BORDER'):
-            self.landingStatus = 'LAND'
-            mc.move_distance(self.padPos[0]/2.-self.x, self.padPos[1]/2.-self.y, 0,velocity=LANDINGSPEED)
-            mc.land()
+            self.padDetected = False
+            self.padPos = [self.padPos[0] + self.x*dirToOrderDict[self.landPos[2]][0], self.padPos[1] + self.y*dirToOrderDict[self.landPos[2]][1]]
+        if(self.landingStatus == 'FIRST_BORDER' or self.landingStatus == 'SECOND_BORDER'):
+            if(self.goTo([self.landPos[0] + 0.6*dirToOrderDict[self.landPos[2]][0], self.landPos[1] + 0.6*dirToOrderDict[self.landPos[2]][1]])):
+                if(self.landingStatus == 'FIRST_BORDER'):
+                    print('Didnt find second border')
+                    mc.land()
+                self.landingStatus = 'MOVING_TO_POS'
+                time.sleep(3)
+                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x + 0.5)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2. + 0.5)*dirToOrderDict[self.landPos[2]][1] + (self.y)*dirToOrderDict[self.landPos[2]][0], self.landPos[2]]
+        elif(self.landingStatus == 'MOVING_TO_POS'):
+            if(self.goTo([self.landPos[0], self.landPos[1]])):
+                self.landingStatus = 'SEARCH_THIRD_BORDER'
+                time.sleep(3)
+                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 1)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2. - 1)*dirToOrderDict[self.landPos[2]][1] + (self.y)*dirToOrderDict[self.landPos[2]][0], TurnRightDict[self.landPos[2]]]
+        elif(self.landingStatus == 'SEARCH_THIRD_BORDER' or self.landingStatus == 'THIRD_BORDER' or self.landingStatus == 'FOURTH_BORDER'):
+            if(self.goTo([self.landPos[0], self.landPos[1]])):
+                if(self.landingStatus != 'FOURTH_BORDER'):
+                    print('Didnt find fourth border')
+                    mc.land()
+                self.landingStatus = 'LAND'
+                self.landPos = [self.padPos[0]/2., self.padPos[1]/2., self.landPos[2]]
+        elif(self.landingStatus == 'LAND'):
+            if(self.goTo([self.landPos[0], self.landPos[1]])):
+                mc.land()
+                print('success')
+        else:
+            print('Wrong state machine : Landing')
 
-    def landing2(self, mc):      #Fonction called when landing pad is detected below the drone
-        if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 0:
-            mc.stop()
-            self.landing_state = 1
+    def goTo(self, pos) :
+        if(self.x > pos[0] + 0.02):
+            self.V_ref = [GOTOSPEED, 'BACK']
+            return False
+        elif(self.x < pos[0] - 0.02):
+            self.V_ref = [GOTOSPEED, 'FRONT']
+            return False
+        elif(self.y > pos[1] + 0.02):
+            self.V_ref = [GOTOSPEED, 'RIGHT']
+            return False
+        elif(self.y < pos[1] - 0.02):
+            self.V_ref = [GOTOSPEED, 'LEFT']
+            return False
+        else :
+            return True
 
-        if self.landing_state == 1:
-
-            if self.landingDirection == 'FRONT':                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
-                mc.back(0.15, velocity = 0.5)      #Check when the drone start going backaward, what's the distance to be in center of the landing pad (I assumed 15cm)
-                mc.start_right(velocity = 0.5)
-                self.landingDirection = 'RIGHT'
-            elif self.landingDirection == 'BACK':
-                mc.forward(0.15, velocity = 0.5)
-                mc.start_right(velocity = 0.5)
-                self.landingDirection = 'RIGHT'
-            elif self.landingDirection == 'RIGHT':
-                mc.left(0.15, velocity = 0.5)
-                mc.start_forward(velocity = 0.5)
-                self.landingDirection = 'FRONT'
-            elif self.landingDirection == 'LEFT':
-                mc.right(0.15, velocity = 0.5)
-                mc.start_forward(velocity = 0.5)
-                self.landingDirection = 'FRONT'
-
-            self.landing_state = 2
-
-
-        if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 2:
-            mc.stop()
-            self.landing_state = 3
-
-        if self.landing_state == 3:
-
-            if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
-                mc.back(0.15, velocity = 0.5)
-            elif self.direction == RIGHT:
-                mc.left(0.15, velocity = 0.5)
-
-
-            self.direction = 0
-            mc.stop()
-            mc.land()
-            #self.explorationState = startingPadDetected
-            self.landing_state = 0                              #Drone landed on the landing pad, variabe reinint for next call of the function
-
-
-        return None
-
-    # def returnToStart(self, start):
-    #     while ( self.logs[self.count][0] > start[0]):
-    #         if (self.logs[self.count][3]>400):
-    #             LoggingExample.obstacleAvoidance_forward()
-    #         else :
-    #             MotionCommander.start_forward(velocity=0.2)
-    #     if (self.logs[self.count][1] < start[1]):
-    #         while (self.logs[self.count][1] < start[1]):
-    #             if (self.logs[self.count][4]>400):
-    #                 LoggingExample.obstacleAvoidance_left()
-    #             else :
-    #                 MotionCommander.start_left(velocity=0.2)
-    #     else:
-    #         while (self.logs[self.count][1] > start[1]):
-    #             if (self.logs[self.count][5]>400):
-    #                 LoggingExample.obstacleAvoidance_right()
-    #             else :
-    #                 MotionCommander.start_right(velocity=0.2)
-    #     self.explorationState = startingPadDetected
-    #     return None
     def obstacleAvoidance_forward(self, mc):
         print('obstacle avoidance')
         print(self.statusManoeuvre)
@@ -369,21 +292,6 @@ class LoggingExample:
             else :
                 self.obstacleDetected = None
                 self.statusManoeuvre = 1
-
-
-    def obstacleAvoidance_forward2(self, mc):
-        y1 = self.logs[self.count][1]
-        while (self.logs[self.count][3] < 300):
-            mc.start_left(velocity=0.2)
-            print(self.logs[self.count][3])
-        mc.left(distance_m = 0.07, velocity=0.2)
-        mc.forward(distance_m= 0.3,velocity=0.2)
-        while (self.logs[self.count][5] < 500):
-            print(self.logs[self.count][4])
-            mc.start_forward(velocity=0.2)
-        mc.forward(distance_m= 0.1,velocity=0.2)
-        mc.right(distance_m = -y1+self.logs[self.count][1],velocity=0.2)
-        self.obstacleDetected = None
 
     def obstacleAvoidance_left(self, mc):
         x1 = self.logs[self.count][0]
@@ -471,16 +379,19 @@ class LoggingExample:
             with MotionCommander(scf) as mc:
                 x0 = 0.3
                 y0 = 0.45
-                mc.up(0.3)
-                time.sleep(2)
+                mc.up((HEIGHT_DRONE/1000.) - 0.3)
+                time.sleep(1)
+                while(self.z > (HEIGHT_DRONE + 5) or self.z < (HEIGHT_DRONE - 5)) :
+                    self.updateSensorValue()
+                    time.sleep(0.01)
+                    print('Stabilizing height, z :',self.z)
                 # while(self.explorationState != finish):
                 while(1):
-                    time.sleep(0.1)
+                    time.sleep(0.01)
 
-                    print(self.explorationState)
                     self.updateSensorValue()
                     self.detectPadBorder()
-
+                    print(self.explorationState,', z :',self.z)
                     if(self.explorationState == 'START'):
                         #self.explore()
                         self.V_ref = [0.2, 'FRONT']
