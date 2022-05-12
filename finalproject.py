@@ -15,23 +15,22 @@ uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
-
-HEIGHT_DRONE = 600
+PAD_HEIGHT = 30
 FORWARD = 0
 BACKWARD = 1
 LEFT = 2
 RIGHT = 3
 TRESHOLD = 300
-PAD_TRESHOLD_RISE = 590
-PAD_TRESHOLD_FALL = 615
+PAD_TRESHOLD_RISE = 10
+PAD_TRESHOLD_FALL = 15
 X0 = 0.3
 Y0 = 0.3
 START_ZONE_X = 1
 MAP_SIZE_X = 3
 MAP_SIZE_Y = 0.6
 EXPLORESPEED = 0.2
-LANDINGSPEED = 0.1
-GOTOSPEED = 0.1
+LANDINGSPEED = 0.2
+GOTOSPEED = 0.2
 TurnRightDict = {
   'FRONT': 'RIGHT',
   'RIGHT': 'BACK',
@@ -63,6 +62,7 @@ class LoggingExample:
         # Fly a square
         self.is_connected = True
         #flag
+        self.heightDrone = 600
         self.explorationState = 'START' #[start, landingPadDetected, return, startingPadDetected, finish]
         self.obstacleDetected = None
         self.x = 0
@@ -179,33 +179,43 @@ class LoggingExample:
                 print('wrong state machine : explore')
 
 
-    def detectPadBorder(self):
-        if(self.z < PAD_TRESHOLD_RISE):
+    def detectPadBorder(self,mc):
+        if(self.z < self.heightDrone + PAD_TRESHOLD_RISE):
             time.sleep(0.2)
             if(self.explorationState == 'START') :
                 self.explorationState = 'LANDINGPADDETECTED'
                 self.landingStatus = 'FIRST_BORDER'
                 self.padDetected = True
                 self.landPos = [self.x, self.y,self.V_ref[1]]
+                self.heightDrone -= PAD_HEIGHT
+                mc.down(PAD_HEIGHT)
             elif(self.explorationState == 'RETURN'):
                 self.explorationState = 'STARTINGPADDETECTED'
                 self.landingStatus = 'FIRST_BORDER'
                 self.padDetected = True
                 self.landPos = [self.x, self.y,self.V_ref[1]]
+                self.heightDrone -= PAD_HEIGHT
+                mc.down(PAD_HEIGHT)
             elif(self.landingStatus == 'SEARCH_THIRD_BORDER'):
                 self.landingStatus = 'THIRD_BORDER'
                 self.padDetected = True
+                self.heightDrone -= PAD_HEIGHT
+                mc.down(PAD_HEIGHT)
             else:
                 print("wrong state machine : detectPadBoarder")
 
-        if(self.z > PAD_TRESHOLD_FALL):
+        if(self.z > self.heightDrone + PAD_TRESHOLD_FALL):
             if(self.explorationState == 'LANDINGPADDETECTED' or self.explorationState == 'STARTINGPADDETECTED'):
                 if(self.landingStatus == 'FIRST_BORDER'):
                     self.padDetected = True
                     self.landingStatus = 'SECOND_BORDER'
+                    self.heightDrone += PAD_HEIGHT
+                    mc.up(PAD_HEIGHT)
                 elif(self.landingStatus == 'THIRD_BORDER'):
                     self.padDetected = True
                     self.landingStatus = 'FOURTH_BORDER'
+                    self.heightDrone += PAD_HEIGHT
+                    mc.up(PAD_HEIGHT)
             else:
                 print("wrong state machine : detectPadBoarder")
 
@@ -214,6 +224,7 @@ class LoggingExample:
         if(self.padDetected == True):
             self.padDetected = False
             self.padPos = [self.padPos[0] + self.x*dirToOrderDict[self.landPos[2]][0], self.padPos[1] + self.y*dirToOrderDict[self.landPos[2]][1]]
+            print('pad Pos : [%2.2f, %2.2f]' % (self.padPos[0], self.padPos[1]))
         if(self.landingStatus == 'FIRST_BORDER' or self.landingStatus == 'SECOND_BORDER'):
             if(self.goTo([self.landPos[0] + 0.6*dirToOrderDict[self.landPos[2]][0], self.landPos[1] + 0.6*dirToOrderDict[self.landPos[2]][1]])):
                 if(self.landingStatus == 'FIRST_BORDER'):
@@ -221,12 +232,13 @@ class LoggingExample:
                     mc.land()
                 self.landingStatus = 'MOVING_TO_POS'
                 time.sleep(3)
-                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x + 0.5)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2. + 0.5)*dirToOrderDict[self.landPos[2]][1] + (self.y)*dirToOrderDict[self.landPos[2]][0], self.landPos[2]]
+                self.landPos = [(self.padPos[0]/2.)*(dirToOrderDict[self.landPos[2]][0]) + (self.x + 0.3)*(dirToOrderDict[self.landPos[2]][1]), (self.padPos[1]/2.)*(dirToOrderDict[self.landPos[2]][1]) + (self.y + 0.3)*(dirToOrderDict[self.landPos[2]][0]), self.landPos[2]]
         elif(self.landingStatus == 'MOVING_TO_POS'):
+            print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
             if(self.goTo([self.landPos[0], self.landPos[1]])):
                 self.landingStatus = 'SEARCH_THIRD_BORDER'
                 time.sleep(3)
-                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 1)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2. - 1)*dirToOrderDict[self.landPos[2]][1] + (self.y)*dirToOrderDict[self.landPos[2]][0], TurnRightDict[self.landPos[2]]]
+                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 0.7)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2.)*dirToOrderDict[self.landPos[2]][1] + (self.y - 0.7)*dirToOrderDict[self.landPos[2]][0], TurnRightDict[self.landPos[2]]]
         elif(self.landingStatus == 'SEARCH_THIRD_BORDER' or self.landingStatus == 'THIRD_BORDER' or self.landingStatus == 'FOURTH_BORDER'):
             if(self.goTo([self.landPos[0], self.landPos[1]])):
                 if(self.landingStatus != 'FOURTH_BORDER'):
@@ -379,9 +391,9 @@ class LoggingExample:
             with MotionCommander(scf) as mc:
                 x0 = 0.3
                 y0 = 0.45
-                mc.up((HEIGHT_DRONE/1000.) - 0.3)
+                mc.up((self.heightDrone/1000.) - 0.3)
                 time.sleep(1)
-                while(self.z > (HEIGHT_DRONE + 5) or self.z < (HEIGHT_DRONE - 5)) :
+                while(self.z > (self.heightDrone + 5) or self.z < (self.heightDrone - 5)) :
                     self.updateSensorValue()
                     time.sleep(0.01)
                     print('Stabilizing height, z :',self.z)
@@ -390,7 +402,7 @@ class LoggingExample:
                     time.sleep(0.01)
 
                     self.updateSensorValue()
-                    self.detectPadBorder()
+                    self.detectPadBorder(mc)
                     print(self.explorationState,', z :',self.z)
                     if(self.explorationState == 'START'):
                         #self.explore()
