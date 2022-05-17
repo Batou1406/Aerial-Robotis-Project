@@ -122,6 +122,11 @@ class Drone:
         self.padPos = [0,0]
         self.padDetected = False
 
+        #return to start variables
+        self.counter = 0
+        self.x_desired_return = X0
+        self.y_desired_return = Y0
+
         self.flySearch(link_id)
 
     def _connected(self, link_id):
@@ -274,20 +279,65 @@ class Drone:
             print('Wrong state machine : Landing')
 
     def goTo(self, pos) :
+        dist = np.sqrt((self.x - pos[0])**2 + (self.y - pos[1])**2)
+
+        # if dist > 1:
+        #     speed_applied = 4*GOTOSPEED
+        if dist > 0.5:
+            speed_applied = 0.5*GOTOSPEED
+        elif dist > 0.3:
+            speed_applied = 0.4*GOTOSPEED
+        else:
+            speed_applied = GOTOSPEED/3
+
         if(self.x > pos[0] + 0.03):
-            self.V_ref = [GOTOSPEED*abs(self.x - pos[0])/0.7, 'BACK']
+            self.V_ref = [speed_applied, 'BACK']
             return False
         elif(self.x < pos[0] - 0.03):
-            self.V_ref = [GOTOSPEED*abs(self.x - pos[0])/0.7, 'FRONT']
+            self.V_ref = [speed_applied, 'FRONT']
             return False
         elif(self.y > pos[1] + 0.03):
-            self.V_ref = [GOTOSPEED*abs(self.y - pos[1])/0.7, 'RIGHT']
+            self.V_ref = [speed_applied, 'RIGHT']
             return False
         elif(self.y < pos[1] - 0.03):
-            self.V_ref = [GOTOSPEED*abs(self.y - pos[1])/0.7, 'LEFT']
+            self.V_ref = [speed_applied, 'LEFT']
             return False
         else :
             return True
+
+    def returnToStart(self, mc):
+        print('counter = ', self.counter)
+        print(self.exploreStatus)
+        if (self.goTo([X0, Y0]) and self.counter == 0):
+            self.counter = 1
+            self.exploreStatus == 'BACK'
+
+        if self.counter > 0:
+            if(self.exploreStatus == 'BACK'):
+                if(self.goTo([self.x_desired_return - 0.2*self.counter, self.y_desired_return])):
+                    self.exploreStatus = 'LEFT'
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+
+            if(self.exploreStatus == 'LEFT'):
+                if(self.goTo([self.x_desired_return, self.y_desired_return + 0.2*self.counter])):
+                    self.exploreStatus = 'FRONT'
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+                    self.counter += 1
+
+            if(self.exploreStatus == 'FRONT'):
+                if(self.goTo([self.x_desired_return + 0.2*self.counter, self.y_desired_return])):
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+                    self.exploreStatus = 'RIGHT'
+
+            if(self.exploreStatus == 'RIGHT'):
+                if(self.goTo([self.x_desired_return, self.y_desired_return - 0.2*self.counter])):
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+                    self.exploreStatus = 'BACK'
+                    self.counter += 1
 
     def obstacleDodge(self):
         """Permet de contourner l'obstacle
