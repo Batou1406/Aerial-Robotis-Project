@@ -21,7 +21,7 @@ BACKWARD = 1
 LEFT = 2
 RIGHT = 3
 TRESHOLD = 300
-PAD_TRESHOLD_RISE = 10
+PAD_TRESHOLD_RISE = 12
 PAD_TRESHOLD_FALL = 15
 # PAD_TRESHOLD_RISE = 8
 # PAD_TRESHOLD_FALL = 12
@@ -33,23 +33,23 @@ MAP_SIZE_Y = 0.6
 EXPLORESPEED = 0.5
 LANDINGSPEED = 0.5
 GOTOSPEED = 0.5
-TurnRightDict = {
-  'FRONT': 'RIGHT',
-  'RIGHT': 'BACK',
-  'BACK': 'LEFT',
-  'LEFT': 'FRONT'
+TurnLeftDict = {
+  'FRONT': 'LEFT',
+  'RIGHT': 'FRONT',
+  'BACK': 'RIGHT',
+  'LEFT': 'BACK'
 }
 dirToOrderDict = {
   'FRONT': [1,0],
-  'RIGHT': [0,1],
+  'RIGHT': [0,-1],
   'BACK': [-1,0],
-  'LEFT': [0,-1]
+  'LEFT': [0,1]
 }
 OffSetLandDict = {
-  'FRONT': [1,-1],
-  'RIGHT': [-1,-1],
-  'BACK': [-1,1],
-  'LEFT': [1,1]
+  'FRONT': 1,
+  'RIGHT': 1,
+  'BACK': -1,
+  'LEFT': -1
 }
 
 class LoggingExample:
@@ -236,7 +236,7 @@ class LoggingExample:
         if(self.padDetected == True):
             self.padDetected = False
             print('la vrai position du drone a la bordure : [%2.2f, %2.2f]' % (self.x, self.y))
-            self.padPos = [self.padPos[0] + (self.x +  + (0.1*OffSetLandDict[self.landPos[2]][0]))*dirToOrderDict[self.landPos[2]][0] , self.padPos[1] + (self.y +  + (0.1*OffSetLandDict[self.landPos[2]][1]))*dirToOrderDict[self.landPos[2]][1]]
+            self.padPos = [self.padPos[0] + (self.x + (0.1*OffSetLandDict[self.landPos[2]]))*dirToOrderDict[self.landPos[2]][0] , self.padPos[1] + (self.y + (0.1*OffSetLandDict[self.landPos[2]]))*dirToOrderDict[self.landPos[2]][1]]
             print('pad Pos : [%2.2f, %2.2f]' % (self.padPos[0], self.padPos[1]))
         if(self.landingStatus == 'FIRST_BORDER' or self.landingStatus == 'SECOND_BORDER'):
             if(self.goTo([self.landPos[0] + 0.6*dirToOrderDict[self.landPos[2]][0], self.landPos[1] + 0.6*dirToOrderDict[self.landPos[2]][1]])):
@@ -244,24 +244,21 @@ class LoggingExample:
                     print('Didnt find second border')
                     mc.land()
                 self.landingStatus = 'MOVING_TO_POS'
-                mc.stop()
                 # time.sleep(3) 
                 self.landPos = [(self.padPos[0]/2.)*(dirToOrderDict[self.landPos[2]][0]) + (self.x + 0.3)*(dirToOrderDict[self.landPos[2]][1]), (self.padPos[1]/2.)*(dirToOrderDict[self.landPos[2]][1]) + (self.y + 0.3)*(dirToOrderDict[self.landPos[2]][0]), self.landPos[2]]
         elif(self.landingStatus == 'MOVING_TO_POS'):
             print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
             if(self.goTo([self.landPos[0], self.landPos[1]])):
                 self.landingStatus = 'SEARCH_THIRD_BORDER'
-                mc.stop()
                 # time.sleep(3)
-                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 0.7)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2.)*dirToOrderDict[self.landPos[2]][1] + (self.y - 0.7)*dirToOrderDict[self.landPos[2]][0], self.landPos[2]]
+                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 0.7)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2.)*dirToOrderDict[self.landPos[2]][1] + (self.y - 0.7)*dirToOrderDict[self.landPos[2]][0], TurnLeftDict[self.landPos[2]]]
         elif(self.landingStatus == 'SEARCH_THIRD_BORDER' or self.landingStatus == 'THIRD_BORDER' or self.landingStatus == 'FOURTH_BORDER'):
             if(self.goTo([self.landPos[0], self.landPos[1]])):
                 if(self.landingStatus != 'FOURTH_BORDER'):
                     print('Didnt find fourth border')
                     mc.land()
                 self.landingStatus = 'LAND'
-                self.landPos = [(self.padPos[0]/2.), (self.padPos[1]/2.) + (0.1*OffSetLandDict[self.landPos[2]][1]), self.landPos[2]]
-                mc.stop()
+                self.landPos = [self.padPos[0]/2., self.padPos[1]/2., self.landPos[2]]
                 # time.sleep(3)
         elif(self.landingStatus == 'LAND'):
             print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
