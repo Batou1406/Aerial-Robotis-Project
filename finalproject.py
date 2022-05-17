@@ -21,8 +21,42 @@ FORWARD = 0
 BACKWARD = 1
 LEFT = 2
 RIGHT = 3
+<<<<<<< Updated upstream
 
 # [start, landingPadDetected, return, startingPadDetected, finish]
+=======
+TRESHOLD = 300
+PAD_TRESHOLD_RISE = 22
+PAD_TRESHOLD_FALL = 22  
+# PAD_TRESHOLD_RISE = 8
+# PAD_TRESHOLD_FALL = 12
+X0 = 0.3
+Y0 = 0.3
+START_ZONE_X = 1
+MAP_SIZE_X = 3
+MAP_SIZE_Y = 0.6
+EXPLORESPEED = 0.5/2
+LANDINGSPEED = 0.5
+GOTOSPEED = 0.5
+TurnRightDict = {
+  'FRONT': 'RIGHT',
+  'RIGHT': 'BACK',
+  'BACK': 'LEFT',
+  'LEFT': 'FRONT'
+}
+dirToOrderDict = {
+  'FRONT': [1,0],
+  'RIGHT': [0,1],
+  'BACK': [-1,0],
+  'LEFT': [0,-1]
+}
+OffSetLandDict = {
+  'FRONT': [1,-1],
+  'RIGHT': [-1,-1],
+  'BACK': [-1,1],
+  'LEFT': [1,1]
+}
+>>>>>>> Stashed changes
 
 class LoggingExample:
 
@@ -53,6 +87,9 @@ class LoggingExample:
         self.back = 0
         self.x_zone=0
 
+        self.counter = 0
+        self.x_desired_return = X0
+        self.y_desired_return = Y0
         self.flySearch(link_id)
 
     def _connected(self, link_id):
@@ -191,7 +228,80 @@ class LoggingExample:
             mc.start_forward(velocity=0.2)
             self.x_zone = self.x
         else:
+<<<<<<< Updated upstream
             if((-self.y+y0>0) and (self.step==0)):
+=======
+            print('Wrong state machine : Landing')
+
+    def goTo(self, pos) :
+        dist = np.sqrt((self.x - pos[0])**2 + (self.y - pos[1])**2)
+
+        # if dist > 1:
+        #     speed_applied = 4*GOTOSPEED
+        if dist > 0.5:
+            speed_applied = 0.5*GOTOSPEED
+        elif dist > 0.3:
+            speed_applied = 0.4*GOTOSPEED
+        else:
+            speed_applied = GOTOSPEED/3
+        
+        if(self.x > pos[0] + 0.03):
+            self.V_ref = [speed_applied, 'BACK']
+            return False
+        elif(self.x < pos[0] - 0.03):
+            self.V_ref = [speed_applied, 'FRONT']
+            return False
+        elif(self.y > pos[1] + 0.03):
+            self.V_ref = [speed_applied, 'RIGHT']
+            return False
+        elif(self.y < pos[1] - 0.03):
+            self.V_ref = [speed_applied, 'LEFT']
+            return False
+        else :
+            return True
+
+
+    def returnToStart(self, mc):
+        print('counter = ', self.counter)
+        print(self.exploreStatus)
+        if (self.goTo([X0, Y0]) and self.counter == 0):
+            self.counter = 1
+            self.exploreStatus == 'BACK'
+
+        if self.counter > 0:
+            if(self.exploreStatus == 'BACK'):
+                if(self.goTo([self.x_desired_return - 0.2*self.counter, self.y_desired_return])):
+                    self.exploreStatus = 'LEFT'
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+
+            if(self.exploreStatus == 'LEFT'):
+                if(self.goTo([self.x_desired_return, self.y_desired_return + 0.2*self.counter])):
+                    self.exploreStatus = 'FRONT'
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+                    self.counter += 1
+
+            if(self.exploreStatus == 'FRONT'):
+                if(self.goTo([self.x_desired_return + 0.2*self.counter, self.y_desired_return])):
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+                    self.exploreStatus = 'RIGHT'
+            
+            if(self.exploreStatus == 'RIGHT'):
+                if(self.goTo([self.x_desired_return, self.y_desired_return - 0.2*self.counter])):
+                    self.x_desired_return = self.x
+                    self.y_desired_return = self.y
+                    self.exploreStatus = 'BACK'
+                    self.counter += 1
+
+            
+    def obstacleAvoidance_forward(self, mc):
+        print('obstacle avoidance')
+        print(self.statusManoeuvre)
+        if(self.statusManoeuvre == 1):
+            if(self.front < TRESHOLD):
+>>>>>>> Stashed changes
                 mc.start_left(velocity=0.2)
                 if self.z < 585:
                     self.direction=LEFT
@@ -386,6 +496,7 @@ class LoggingExample:
         """ Example of simple logico to make the drone fly in a square
         trajectory at fixed speed"""
         # Sync with drone
+        
         with SyncCrazyflie(id, cf=self._cf) as scf:
             with MotionCommander(scf) as mc:
                 x0 = 0.3
@@ -394,6 +505,7 @@ class LoggingExample:
                 time.sleep(2)
                 # while(self.explorationState != finish):
                 while(1):
+<<<<<<< Updated upstream
                     time.sleep(0.1)
                     data = self.logs[self.count][:]
                     self.x = data[0]
@@ -427,6 +539,29 @@ class LoggingExample:
                     #     self._disconnected
                     # else :
                     #     print("Error : wrong state machine")
+=======
+                    time.sleep(0.01)
+
+                    self.updateSensorValue()
+                    self.detectPadBorder(mc)
+                    print(self.explorationState,', z :',self.z)
+                    if(self.explorationState == 'START'):
+                        self.explore()
+                        # self.V_ref = [0.5, 'FRONT']
+                    elif(self.explorationState == 'LANDINGPADDETECTED'):
+                        self.landing(mc)
+                    elif(self.explorationState == 'RETURN'):
+                        self.explorationState == 'FINISH'
+                        self.returnToStart(mc)
+                    elif(self.explorationState == 'STARTINGPADDETECTED'):
+                        self.landing(mc)
+                    elif((self.explorationState == 'FINISH') or (self.explorationState == 'LANDED')):
+                        self._disconnected
+                    else :
+                        print("Error : wrong state machine")
+
+                    self.obstacleAvoidanceFunc(mc)
+>>>>>>> Stashed changes
 
         self._disconnected
 if __name__ == '__main__':
