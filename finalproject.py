@@ -1,78 +1,99 @@
 import logging
 import time
 import datetime as dt
+import numpy as np
+import os
+
 import cflib.crtp
 from cflib.crazyflie import Crazyflie
 from cflib.crazyflie.log import LogConfig
 from cflib.utils import uri_helper
-import numpy as np
-import os
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.positioning.motion_commander import MotionCommander
 
-# change the uri address to your crazyflie address
 uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
-# Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
-PAD_HEIGHT = 0.1 #3
-FORWARD = 0
-BACKWARD = 1
-LEFT = 2
-RIGHT = 3
-TRESHOLD = 300
+# Treshold define
+TRESHOLD = 300 #treshold pour le contournement de l'obstalce
+TRESHOLD_MIN = 200 #va dans la direction oppose à l'obstacle, peut-importe la direction
 PAD_TRESHOLD_RISE = 12
 PAD_TRESHOLD_FALL = 15
 # PAD_TRESHOLD_RISE = 8
 # PAD_TRESHOLD_FALL = 12
+
+# Map define
+PAD_HEIGHT = 0.1
 X0 = 0.3
 Y0 = 0.3
 START_ZONE_X = 1
 MAP_SIZE_X = 3
 MAP_SIZE_Y = 0.6
+
+#speed define
 EXPLORESPEED = 0.5
 LANDINGSPEED = 0.5
 GOTOSPEED = 0.5
+AVOIDSPEED = 0.2
+
+#Dictonnary
 TurnLeftDict = {
   'FRONT': 'LEFT',
   'RIGHT': 'FRONT',
-  'BACK': 'RIGHT',
-  'LEFT': 'BACK'
+  'BACK' : 'RIGHT',
+  'LEFT' : 'BACK'
+}
+TurnBackDict = {
+  'FRONT': 'BACK',
+  'RIGHT': 'LEFT',
+  'BACK' : 'FRONT',
+  'LEFT' : 'RIGHT'
 }
 dirToOrderDict = {
   'FRONT': [1,0],
   'RIGHT': [0,-1],
-  'BACK': [-1,0],
-  'LEFT': [0,1]
+  'BACK' : [-1,0],
+  'LEFT' : [0,1]
 }
 OffSetLandDict = {
   'FRONT': 1,
   'RIGHT': 1,
-  'BACK': -1,
-  'LEFT': -1
+  'BACK' : -1,
+  'LEFT' : -1
+}
+dictAvoid = { #[direcion où aller en fonction de statusManoeuvre; 0 ou 1 pour savoir s'il faut retourner au milieu en x ou en Y ; 0,1,2 ou 3 pour savoir quel capteur (face ou té-co) lire]
+  'FRONT': ['LEFT','FRONT','RIGHT', 1, 0, 0, 3],
+  'LEFT' : ['BACK','LEFT' ,'FRONT', 0, 1, 1, 0],
+  'BACK' : ['LEFT','BACK' ,'RIGHT', 1, 0, 2, 3],
+  'RIGHT': ['BACK','RIGHT','FRONT', 0, 1, 3, 0]
 }
 
-class LoggingExample:
+
+
+class Drone:
 
     def __init__(self, link_id):
         """ Initialize and run the example with the specified link_id """
-        self.count = 0
-        self.step = 0
         # Initialize cf object
         self._cf = Crazyflie(rw_cache='./cache')
+
         # Connect some callbacks from the Crazyflie API
         self._cf.connected.add_callback(self._connected)
         self._cf.disconnected.add_callback(self._disconnected)
         self._cf.connection_failed.add_callback(self._connection_failed)
         self._cf.connection_lost.add_callback(self._connection_lost)
+
         # Initialize log variable
+        self.count = 0
+        self.step = 0
         self.logs = np.zeros([100000,12])
-        # Fly a square
+
+        #Program status variable
         self.is_connected = True
-        #flag
-        self.heightDrone = 600
         self.explorationState = 'START' #[start, landingPadDetected, return, startingPadDetected, finish]
-        self.obstacleDetected = None
+
+        # Drone variable
+        self.heightDrone = 600
         self.x = 0
         self.y = 0
         self.z = 0
@@ -81,13 +102,22 @@ class LoggingExample:
         self.right = 0
         self.back = 0
         self.lastZ = 0
+
+        #general usage variable
+        self.V_ref = [0, None]
+
+        #obstacle avoidance variable
         self.lastPos = [0,0]
         self.goalPos = [0,0]
+        self.statusManoeuvre = 0 #[0, 1 ,2] -> obstacle de face, de té-co, derrière
+        self.obstacleDetected = None #[None, 'FRONT', 'LEFT', 'RIGHT', 'BACK']
+
+        # Explore variable
         self.explorePos = [0,0]
-        self.V_ref = [0, None]
-        self.landPos = [0,0,None]
-        self.statusManoeuvre = 1
         self.exploreStatus = 'LEFT'
+
+        # Landing variable
+        self.landPos = [0,0,None]
         self.landingStatus = 'LAND'
         self.padPos = [0,0]
         self.padDetected = False
@@ -97,7 +127,6 @@ class LoggingExample:
     def _connected(self, link_id):
         """ This callback is called form the Crazyflie API when a Crazyflie
         has been connected and the TOCs have been downloaded."""
-        # The definition of the logconfig can be made before connecting
         self._lg_stab = LogConfig(name='Stabilizer', period_in_ms=10)
         self._lg_stab.add_variable('stateEstimate.x', 'float')  # estimated X coordinate
         self._lg_stab.add_variable('stateEstimate.y', 'float')  # estimated Y coordinate
@@ -107,16 +136,10 @@ class LoggingExample:
         self._lg_stab.add_variable('range.right', 'uint16_t')
         self._lg_stab.add_variable('range.back', 'uint16_t')
 
-        # Adding the configuration cannot be done until a Crazyflie is
-        # connected, since we need to check that the variables we
-        # would like to log are in the TOC.
         try:
             self._cf.log.add_config(self._lg_stab)
-            # This callback will receive the data
             self._lg_stab.data_received_cb.add_callback(self._stab_log_data)
-            # This callback will be called on errors
             self._lg_stab.error_cb.add_callback(self._stab_log_error)
-            # Start the logging
             self._lg_stab.start()
         except KeyError as e:
             print('Could not start log configuration,'
@@ -130,8 +153,6 @@ class LoggingExample:
 
     def _stab_log_data(self, timestamp, data, logconf):
         """Callback froma the log API when data arrives"""
-        # print('[%d][%s]: %s' % (timestamp, logconf.name, data))
-        # Save info into log variable
         self.count += 1
         for idx, i in enumerate(list(data)):
             self.logs[self.count][idx] = data[i]
@@ -151,19 +172,16 @@ class LoggingExample:
         """Callback when the Crazyflie is disconnected (called in all cases)"""
         print('Disconnected from %s' % link_id)
         self.is_connected = False
-        # Get timestamp
         filename = dt.datetime.now().strftime("%Y_%m_%d_%H_%M_%S.csv")
-        # Save log to file
         if not os.path.exists('logs'):
             os.makedirs('logs')
         filepath = os.path.join(os.getcwd(),'logs',filename)
         np.savetxt(filepath, self.logs, delimiter=',')
 
     def explore(self):
-        #première zone
-        if(self.x < START_ZONE_X):
+        if(self.x < START_ZONE_X): #première zone
             self.V_ref = [EXPLORESPEED, 'FRONT']
-        else:
+        else: #deuxieme zone : on commence la recherche
             if(self.exploreStatus == 'FRONT'):
                 if(self.explorePos[0] > self.x) :
                     self.V_ref = [EXPLORESPEED, 'FRONT']
@@ -188,8 +206,8 @@ class LoggingExample:
                 print('wrong state machine : explore')
 
 
-    def detectPadBorder(self,mc):
-        if(self.z < self.lastZ - PAD_TRESHOLD_RISE):
+    def detectPadBorder(self):
+        if(self.z < self.lastZ - PAD_TRESHOLD_RISE): #On détecte un Rise -> on monte sur le PAD
             time.sleep(0.2)
             if(self.explorationState == 'START') :
                 print('PAD DETECTED')
@@ -197,41 +215,31 @@ class LoggingExample:
                 self.landingStatus = 'FIRST_BORDER'
                 self.padDetected = True
                 self.landPos = [self.x, self.y,self.V_ref[1]]
-                # self.heightDrone -= PAD_HEIGHT
-                # mc.down(PAD_HEIGHT)
             elif(self.explorationState == 'RETURN'):
                 self.explorationState = 'STARTINGPADDETECTED'
                 self.landingStatus = 'FIRST_BORDER'
                 self.padDetected = True
                 self.landPos = [self.x, self.y,self.V_ref[1]]
-                # self.heightDrone -= PAD_HEIGHT
-                # mc.down(PAD_HEIGHT)
             elif(self.landingStatus == 'SEARCH_THIRD_BORDER'):
                 self.landingStatus = 'THIRD_BORDER'
                 self.padDetected = True
-                # self.heightDrone -= PAD_HEIGHT
-                # mc.down(PAD_HEIGHT)
             else:
                 print("wrong state machine : detectPadBoarder")
 
-        if(self.z > self.lastZ + PAD_TRESHOLD_FALL):
+        if(self.z > self.lastZ + PAD_TRESHOLD_FALL): #On détecte un fall -> on descend du PAD
             if(self.explorationState == 'LANDINGPADDETECTED' or self.explorationState == 'STARTINGPADDETECTED'):
                 if(self.landingStatus == 'FIRST_BORDER'):
                     self.padDetected = True
                     self.landingStatus = 'SECOND_BORDER'
-                    # self.heightDrone += PAD_HEIGHT
-                    # mc.up(PAD_HEIGHT)
                 elif(self.landingStatus == 'THIRD_BORDER'):
                     self.padDetected = True
                     self.landingStatus = 'FOURTH_BORDER'
-                    # self.heightDrone += PAD_HEIGHT
-                    # mc.up(PAD_HEIGHT)
             else:
                 print("wrong state machine : detectPadBoarder")
 
         self.lastZ = self.z
 
-    def landing(self,mc):
+    def landing(self):
         print(self.landingStatus)
         if(self.padDetected == True):
             self.padDetected = False
@@ -242,28 +250,25 @@ class LoggingExample:
             if(self.goTo([self.landPos[0] + 0.6*dirToOrderDict[self.landPos[2]][0], self.landPos[1] + 0.6*dirToOrderDict[self.landPos[2]][1]])):
                 if(self.landingStatus == 'FIRST_BORDER'):
                     print('Didnt find second border')
-                    mc.land()
+                    self.V_ref = [0, 'LAND']
                 self.landingStatus = 'MOVING_TO_POS'
-                # time.sleep(3) 
                 self.landPos = [(self.padPos[0]/2.)*(dirToOrderDict[self.landPos[2]][0]) + (self.x + 0.3)*(dirToOrderDict[self.landPos[2]][1]), (self.padPos[1]/2.)*(dirToOrderDict[self.landPos[2]][1]) + (self.y + 0.3)*(dirToOrderDict[self.landPos[2]][0]), self.landPos[2]]
         elif(self.landingStatus == 'MOVING_TO_POS'):
             print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
             if(self.goTo([self.landPos[0], self.landPos[1]])):
                 self.landingStatus = 'SEARCH_THIRD_BORDER'
-                # time.sleep(3)
                 self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 0.7)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2.)*dirToOrderDict[self.landPos[2]][1] + (self.y - 0.7)*dirToOrderDict[self.landPos[2]][0], TurnLeftDict[self.landPos[2]]]
         elif(self.landingStatus == 'SEARCH_THIRD_BORDER' or self.landingStatus == 'THIRD_BORDER' or self.landingStatus == 'FOURTH_BORDER'):
             if(self.goTo([self.landPos[0], self.landPos[1]])):
                 if(self.landingStatus != 'FOURTH_BORDER'):
                     print('Didnt find fourth border')
-                    mc.land()
+                    self.V_ref = [0, 'LAND']
                 self.landingStatus = 'LAND'
                 self.landPos = [self.padPos[0]/2., self.padPos[1]/2., self.landPos[2]]
-                # time.sleep(3)
         elif(self.landingStatus == 'LAND'):
             print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
             if(self.goTo([self.landPos[0] , self.landPos[1]])):
-                mc.land()
+                self.V_ref = [0, 'LAND']
                 print('success')
         else:
             print('Wrong state machine : Landing')
@@ -284,113 +289,88 @@ class LoggingExample:
         else :
             return True
 
-    def obstacleAvoidance_forward(self, mc):
+    def obstacleDodge(self):
+        """Permet de contourner l'obstacle
+        1. on se décale tant qu'on détécte l'obstacle de face, puis encore de 7cm
+        2. on avance de 7cm, puis tant qu'on détécte l'obstacle sur le té-co, puis encore de 7cm
+        3. on se recentre (uniquement le long de la coordonée d'intéret)"""
         print('obstacle avoidance')
-        print(self.statusManoeuvre)
-        if(self.statusManoeuvre == 1):
-            if(self.front < TRESHOLD):
-                mc.start_left(velocity=0.2)
-            else :
-                self.goalPos = [self.x, self.y+0.07]
-                self.statusManoeuvre = 2
-        elif(self.statusManoeuvre == 2):
-            if(self.goalPos[1] > self.y):
-                mc.start_left(velocity=0.2)
-            else:
-                self.statusManoeuvre = 3
-                self.goalPos = [self.x + 0.3, self.y]
-        elif(self.statusManoeuvre == 3):
-            if(self.right < TRESHOLD or (self.x < self.goalPos[0] and self.front > TRESHOLD)):
-                mc.start_forward(velocity=0.2)
-            else:
-                self.goalPos = [self.x + 0.1, self.y]
-                self.statusManoeuvre = 4
-        elif(self.statusManoeuvre == 4):
-            if(self.goalPos[0] > self.x):
-                mc.start_forward(velocity=0.2)
-            else:
-                self.statusManoeuvre = 5
-                self.goalPos = [self.x, self.lastPos[1]]
-        elif(self.statusManoeuvre == 5):
-            if(self.right < TRESHOLD):
-                self.statusManoeuvre = 3
-            elif(self.goalPos[1] < self.y):
-                mc.start_right(velocity=0.2)
-            else :
-                self.obstacleDetected = None
+        capteurFace = [self.front, self.left, self.back, self.right][dictAvoid[self.obstacleDetected][5]]
+        capteurSide = [self.front, self.left, self.back, self.right][dictAvoid[self.obstacleDetected][6]]
+        if(self.statusManoeuvre == 0): # Manoeuvre pour éviter l'osbtacle qui est de face
+            if(capteurFace < TRESHOLD): # Tant qu'on détecte l'obstacle en face on avance sur le té-co et on reset l'objectif 7cm plus loin (sur le té-co)
+                self.V_ref = [AVOIDSPEED, dictAvoid[self.obstacleDetected][self.statusManoeuvre]]
+                self.goalPos = [self.x + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
+            else: # On détecte plus l'objectif sur en face, alors on move à l'objectif qui est 7cm plus loin
+                if(self.goTo(self.goalPos)): #On a move de 7cm sur le té-co, alors on fixe l'objectif 7cm devant et on passe au point suivant
+                    self.statusManoeuvre = 1
+                    self.goalPos = [self.x + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0]] #7cm de plus du côté où il VA d'aller
+        elif(self.statusManoeuvre == 1): #l'obstacle sur le téco
+            if(capteurFace < TRESHOLD):#on redétècte l'obstacle en face -> retour au début, on s'est pas assez décalé
+                self.statusManoeuvre = 0
+            elif(capteurside < TRESHOLD): # Tant qu'on détecte l'obstacle sur le té-co, on avance et on reset l'objectif 7cm plus loin (devant)
+                self.V_ref = [AVOIDSPEED, dictAvoid[self.obstacleDetected][self.statusManoeuvre]] #ligne 'direction de l'obstacle' dans le dictionnaire, colone/indice 'statusManoeuvre'
+                self.goalPos = [self.x + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
+            else: #on ne détecte PAS ENCORE ou PLUS l'objectif sur le té-co, donc on move de 7cm en avant (une fois au début, une fois à la fin).
+                if(self.goTo(self.goalPos)): # on a move de 7cm et donc dépassé l'obstacle, on passe au point suivant et l'objectif au point de départ de l'obstalce avoidance sera fixé après (pour permettre de pas être coincé par le goTo en refreshant l'objectif)
+                    self.statusManoeuvre = 2
+        elif(self.statusManoeuvre == 2): # manoeuvre finale, on se redecale pour atteindre la position de départ.
+            if(capteurSide < TRESHOLD): # On redecte l'obstacle sur le té-co, retour a l'étape précédante, on a pas assez avancé
                 self.statusManoeuvre = 1
+            self.goalPos = [ self.x*dictAvoid[self.obstacleDetected][4] + self.lastPos[0]*dictAvoid[self.obstacleDetected][3], self.y*dictAvoid[self.obstacleDetected][3] + self.lastPos[1]*dictAvoid[self.obstacleDetected][4]] #position pour le faire revenir là où il avait commencé à éviter l'obstacle, on refresh parce que la position est importante seulement dans une des deux coordonées, il doit pouvoir avancer (grâce à l'évitement des obtsalces vraiment trop près) si l'obstalce est de biais
+            if(self.goTo(self.goalPos)): #On a atteind la position du début et dépassé l'obstacle. Fin de l'obstacle avoidance
+                self.statusManoeuvre = 0
+                self.obstacleDetected = None
 
-    def obstacleAvoidance_left(self, mc):
-        x1 = self.logs[self.count][0]
-        while(self.logs[self.count][4] < 300):
-            mc.start_forward(velocity=0.2)
-        mc.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-        mc.move_distance(distance_x_m= 0, distance_y_m = 0.3, distance_z_m = 0,velocity=0.2)
-        while(self.logs[self.count][6] < 300):
-            mc.start_left(velocity=0.2)
-        mc.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
-        mc.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-        self.obstacleDetected = None
-
-    def obstacleAvoidance_right(self,mc):
-
-        x1 = self.logs[self.count][0]
-        while (self.logs[self.count][5] < 300):
-            print(self.logs[self.count][5])
-            mc.start_forward(velocity=0.2)
-        mc.forward(distance_m= 0.1, velocity=0.2)
-        mc.right(distance_m = 0.3, velocity=0.2)
-        while (self.logs[self.count][6] < 400):
-            mc.start_right(velocity=0.2)
-            print(self.logs[self.count][6])
-        print('xm = ', x1-self.logs[self.count][0])
-        print('x1 = ', x1)
-        print('x_pos', self.logs[self.count][0])
-        mc.right(distance_m = 0.1, velocity=0.2)
-        mc.back(distance_m= -x1+self.logs[self.count][0], velocity=0.2)
-        self.obstacleDetected = None
-
-    def obstacleAvoidance_back(self, mc):
-        print('tbd')
-        self.obstacleDetected = None
-
-    def obstacleAvoidanceFunc(self,mc):
-
+    def obstacleAvoidance(self,mc):
+        """ Fonction qui applique la vitesse au drone en fonction de la référence et des obstacles
+        1. Vérifie s'il y a un obstalce sur le chemin -> si oui, lance obstacleDodge pour l'éviter (garde en mémoire l'état)
+        2. s'éloigne des obstacles TROP proches
+        3. applique la vitesse de référence au drone """
         if(self.obstacleDetected is None):
-            if(self.front < TRESHOLD) :
+            if(self.front < TRESHOLD and self.V_ref[1] == 'FRONT') :
                 self.obstacleDetected = 'FRONT'
-            elif(self.left < TRESHOLD) :
+            elif(self.left < TRESHOLD and self.V_ref[1] == 'LEFT') :
                 self.obstacleDetected = 'LEFT'
-            elif(self.right < TRESHOLD) :
+            elif(self.right < TRESHOLD and self.V_ref[1] == 'RIGHT') :
                 self.obstacleDetected = 'RIGHT'
-            elif(self.back < TRESHOLD) :
-                #self.obstacleDetected = 'BACK'
-                print('tbd')
+            elif(self.back < TRESHOLD and self.V_ref[1] == 'BACK') :
+                self.obstacleDetected = 'BACK'
             if(self.obstacleDetected is not None):
                 self.lastPos = [self.x, self.y]
 
         if(self.obstacleDetected is not None) :
-            if(self.obstacleDetected == 'FRONT'):
-                self.obstacleAvoidance_forward(mc)
-            if(self.obstacleDetected == 'LEFT'):
-                self.obstacleAvoidance_left(mc)
-            if(self.obstacleDetected == 'RIGHT'):
-                self.obstacleAvoidance_right(mc)
-            if(self.obstacleDetected == 'BACK'):
-                self.obstacleAvoidance_back(mc)
-        elif((self.explorationState != 'LANDED') and (self.explorationState != 'FINISH')) :
-            if(self.V_ref[1] == 'FRONT') :
-                mc.start_forward(velocity=self.V_ref[0])
-            elif(self.V_ref[1] == 'LEFT') :
-                 mc.start_left(velocity=self.V_ref[0])
-            elif(self.V_ref[1] == 'RIGHT') :
-                 mc.start_right(velocity=self.V_ref[0])
-            elif(self.V_ref[1] == 'BACK') :
-                 mc.start_back(velocity=self.V_ref[0])
+            self.obstacleDodge()
+
+        #permet d'éviter les obstalces TROP proche, dans toutes les directions, actif tout le temps
+        if(self.front < TRESHOLD_MIN):
+            self.V_ref = [AVOIDSPEED, 'BACK']
+        elif(self.left < TRESHOLD_MIN):
+            self.V_ref = [AVOIDSPEED, 'RIGHT']
+        elif(self.right < TRESHOLD_MIN):
+            self.V_ref = [AVOIDSPEED, 'LEFT']
+        elif(self.back < TRESHOLD_MIN):
+            self.V_ref = [AVOIDSPEED, 'FRONT']
+
+        # Set la vitesse
+        if(self.V_ref[1] == 'FRONT') :
+            mc.start_forward(velocity=self.V_ref[0])
+        elif(self.V_ref[1] == 'LEFT') :
+            mc.start_left(velocity=self.V_ref[0])
+        elif(self.V_ref[1] == 'RIGHT') :
+            mc.start_right(velocity=self.V_ref[0])
+        elif(self.V_ref[1] == 'BACK') :
+            mc.start_back(velocity=self.V_ref[0])
+        elif(self.V_ref[1] == 'STOP'):
+            mc.stop()
+        elif(self.V_ref[1] == 'LAND'):
+            mc.land()
+        else:
+            print('wrong state machine : obstacle avoidance')
 
     def updateSensorValue(self):
         data = self.logs[self.count][:]
-        self.x = data[0] + X0
+        self.x = data[0] + X0 #add offset
         self.y = data[1] + Y0
         self.z = data[2]
         self.front = data[3]
@@ -399,51 +379,45 @@ class LoggingExample:
         self.back = data[6]
 
     def flySearch(self, id):
-        """ Example of simple logico to make the drone fly in a square
-        trajectory at fixed speed"""
-        # Sync with drone
-        with SyncCrazyflie(id, cf=self._cf) as scf:
-            with MotionCommander(scf) as mc:
-                x0 = 0.3
-                y0 = 0.45
-                mc.up((self.heightDrone/1000.) - 0.3)
+        """ algorith de navigation"""
+        with SyncCrazyflie(id, cf=self._cf) as scf: # Sync with drone
+            with MotionCommander(scf, default_height=(self.heightDrone/1000.)) as mc:
                 time.sleep(1)
+
                 while(self.z > (self.heightDrone + 5) or self.z < (self.heightDrone - 5)) :
                     self.updateSensorValue()
                     time.sleep(0.01)
                     print('Stabilizing height, z :',self.z)
-                # while(self.explorationState != finish):
-                time.sleep(1)
+
+                #while(self.explorationState != finish):
                 while(1):
                     time.sleep(0.01)
 
                     self.updateSensorValue()
-                    self.detectPadBorder(mc)
+                    self.detectPadBorder()
+
                     print(self.explorationState,', z :',self.z)
                     if(self.explorationState == 'START'):
                         #self.explore()
                         self.V_ref = [0.5, 'FRONT']
                     elif(self.explorationState == 'LANDINGPADDETECTED'):
-                        self.landing(mc)
+                        self.landing()
                     elif(self.explorationState == 'RETURN'):
                         self.explorationState == 'FINISH'
                         # self.returnToStart()
                     elif(self.explorationState == 'STARTINGPADDETECTED'):
-                        self.landing(mc)
+                        self.landing()
                     elif((self.explorationState == 'FINISH') or (self.explorationState == 'LANDED')):
                         self._disconnected
                     else :
                         print("Error : wrong state machine")
 
-                    self.obstacleAvoidanceFunc(mc)
+                    self.obstacleAvoidance(mc)
 
         self._disconnected
+
 if __name__ == '__main__':
-    # Initialize the low-level drivers (don't list the debug drivers)
     cflib.crtp.init_drivers()
-    le = LoggingExample(uri)
-    # The Crazyflie lib doesn't contain anything to keep the application alive,
-    # so this is where your application should do something. In our case we
-    # are just waiting until we are disconnected.
-    while le.is_connected:
+    drone = Drone(uri)
+    while drone.is_connected:
         time.sleep(1)
