@@ -15,16 +15,11 @@ uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
 # Only output errors from the logging framework
 logging.basicConfig(level=logging.ERROR)
 
-
-HEIGHT_DRONE = 600
+PAD_HEIGHT = 0.1 #3
 FORWARD = 0
 BACKWARD = 1
 LEFT = 2
 RIGHT = 3
-<<<<<<< Updated upstream
-
-# [start, landingPadDetected, return, startingPadDetected, finish]
-=======
 TRESHOLD = 300
 PAD_TRESHOLD_RISE = 22
 PAD_TRESHOLD_FALL = 22  
@@ -56,7 +51,6 @@ OffSetLandDict = {
   'BACK': [-1,1],
   'LEFT': [1,1]
 }
->>>>>>> Stashed changes
 
 class LoggingExample:
 
@@ -76,8 +70,9 @@ class LoggingExample:
         # Fly a square
         self.is_connected = True
         #flag
-        # self.explorationState = start
-        self.obstacleDetected = False
+        self.heightDrone = 600
+        self.explorationState = 'START' #[start, landingPadDetected, return, startingPadDetected, finish]
+        self.obstacleDetected = None
         self.x = 0
         self.y = 0
         self.z = 0
@@ -85,7 +80,17 @@ class LoggingExample:
         self.left = 0
         self.right = 0
         self.back = 0
-        self.x_zone=0
+        self.lastZ = 0
+        self.lastPos = [0,0]
+        self.goalPos = [0,0]
+        self.explorePos = [0,0]
+        self.V_ref = [0, None]
+        self.landPos = [0,0,None]
+        self.statusManoeuvre = 1
+        self.exploreStatus = 'LEFT'
+        self.landingStatus = 'LAND'
+        self.padPos = [0,0]
+        self.padDetected = False
 
         self.counter = 0
         self.x_desired_return = X0
@@ -96,7 +101,7 @@ class LoggingExample:
         """ This callback is called form the Crazyflie API when a Crazyflie
         has been connected and the TOCs have been downloaded."""
         # The definition of the logconfig can be made before connecting
-        self._lg_stab = LogConfig(name='Stabilizer', period_in_ms=40)
+        self._lg_stab = LogConfig(name='Stabilizer', period_in_ms=10)
         self._lg_stab.add_variable('stateEstimate.x', 'float')  # estimated X coordinate
         self._lg_stab.add_variable('stateEstimate.y', 'float')  # estimated Y coordinate
         self._lg_stab.add_variable('range.zrange', 'uint16_t')
@@ -157,80 +162,116 @@ class LoggingExample:
         filepath = os.path.join(os.getcwd(),'logs',filename)
         np.savetxt(filepath, self.logs, delimiter=',')
 
-    # def explore(self, x0, y0, mc):
-    #     while(self.logs[self.count][0] < (1.0-x0)):
-    #         mc.start_forward(velocity=0.2)
-    #         print('go forward 1m')
-    #         print('x = ', self.x)
-    #         print('x0 =', x0)
-    #         self.x_zone = self.logs[self.count][0]
-    #         # mc.start_left(velocity=0.2)
-    #         print('-y+y0 =',-self.logs[self.count][1]+y0 )
-    #         print('self x',self.logs[self.count][0] , 'x_zone + 0.3', self.x_zone+0.3)
-    #     while((-self.logs[self.count][1]+y0>0) and (self.step==0)):
-    #         mc.start_left(velocity=0.2)
-    #         #self.obstacleAvoidance_left(mc)
-    #         print('go left 1')
-    #     self.step=1
-    #     print('step1')
-    #     while((self.logs[self.count][0] < self.x_zone+0.3) and (self.step==1)):
-    #         mc.start_forward(velocity=0.2)
-    #         print('if step 1')
-    #     self.step=2
-    #     print('step2')
-    #     while((-self.logs[self.count][0]+y0 < 0.5) and (self.step==2)):
-    #         mc.start_right(velocity=0.2)
-    #         #self.obstacleAvoidance_right(mc)
-    #         print('if step 2')
-    #     self.step=3
-    #     print('step3')
-            # if(self.x < self.x_zone+0.6 and self.step==3):
-            #     mc.start_forward(velocity=0.2)
-            #     print('if step 3')
-            # elif(self.x >= self.x_zone+0.6 and self.step==3):
-            #     self.step=4
-            #     print('step4')
-            # if(-self.y+y0>0 and self.step==4):
-            #     mc.start_left(velocity=0.2)
-            #     #self.obstacleAvoidance_left(mc)
-            #     print('if step 4')
-            # elif(-self.y+y0<=0 and self.step==4):
-            #     self.step=5
-            #     print('step5')
-            # if(self.x < self.x_zone+0.9 and self.step==5):
-            #     mc.start_forward(velocity=0.2)
-            #     print('if step 5')
-            # elif(self.x >= self.x_zone+0.9 and self.step==5):
-            #     self.step=6
-            #     print('step6')
-            # if(-self.y+y0 < 0.5 and self.step==6):
-            #     mc.start_right(velocity=0.2)
-            #     #self.obstacleAvoidance_right(mc)
-            #     print('if step 6')
-            # elif(-self.y+y0 >= 0.5 and self.step==6):
-            #     self.step=7
-            #     print('step7')
-            # if(self.x < self.x_zone+1.2 and self.step==7):
-            #     mc.start_forward(velocity=0.2)
-            #     print('if step 7')
-            #     self.step=8
-            #     print('step8')
-            # if(-self.y+y0>0 and self.step==8):
-            #     mc.start_left(velocity=0.2)
-            #     #self.obstacleAvoidance_left(mc)
-            #     print('if step 8')
-            # elif(-self.y+y0<=0 and self.step==8):
-            #     mc.land()
-            #     print('land')
-
-    def explore(self, x0, y0, mc):
-        if(self.x < (1-x0)):
-            mc.start_forward(velocity=0.2)
-            self.x_zone = self.x
+    def explore(self):
+        #première zone
+        if(self.x < START_ZONE_X):
+            self.V_ref = [EXPLORESPEED, 'FRONT']
         else:
-<<<<<<< Updated upstream
-            if((-self.y+y0>0) and (self.step==0)):
-=======
+            if(self.exploreStatus == 'FRONT'):
+                if(self.explorePos[0] > self.x) :
+                    self.V_ref = [EXPLORESPEED, 'FRONT']
+                else :
+                    if(self.y < MAP_SIZE_Y/2.):
+                        self.exploreStatus = 'LEFT'
+                    else :
+                        self.exploreStatus = 'RIGHT'
+            elif(self.exploreStatus == 'LEFT'):
+                if(self.y < MAP_SIZE_Y) :
+                    self.V_ref = [EXPLORESPEED, 'LEFT']
+                else :
+                    self.exploreStatus = 'FRONT'
+                    self.explorePos = [self.x + 0.2, self.y]
+            elif(self.exploreStatus == 'RIGHT'):
+                if(self.y > 0) :
+                    self.V_ref = [EXPLORESPEED, 'RIGHT']
+                else :
+                    self.exploreStatus = 'FRONT'
+                    self.explorePos = [self.x + 0.2]
+            else :
+                print('wrong state machine : explore')
+
+
+    def detectPadBorder(self,mc):
+        if(self.z < self.lastZ - PAD_TRESHOLD_RISE):
+            time.sleep(0.2)
+            if(self.explorationState == 'START') :
+                print('PAD DETECTED')
+                self.explorationState = 'LANDINGPADDETECTED'
+                self.landingStatus = 'FIRST_BORDER'
+                self.padDetected = True
+                self.landPos = [self.x, self.y,self.V_ref[1]]
+                # self.heightDrone -= PAD_HEIGHT
+                # mc.down(PAD_HEIGHT)
+            elif(self.explorationState == 'RETURN'):
+                self.explorationState = 'STARTINGPADDETECTED'
+                self.landingStatus = 'FIRST_BORDER'
+                self.padDetected = True
+                self.landPos = [self.x, self.y,self.V_ref[1]]
+                # self.heightDrone -= PAD_HEIGHT
+                # mc.down(PAD_HEIGHT)
+            elif(self.landingStatus == 'SEARCH_THIRD_BORDER'):
+                self.landingStatus = 'THIRD_BORDER'
+                self.padDetected = True
+                # self.heightDrone -= PAD_HEIGHT
+                # mc.down(PAD_HEIGHT)
+            else:
+                print("wrong state machine : detectPadBoarder")
+
+        if(self.z > self.lastZ + PAD_TRESHOLD_FALL):
+            if(self.explorationState == 'LANDINGPADDETECTED' or self.explorationState == 'STARTINGPADDETECTED'):
+                if(self.landingStatus == 'FIRST_BORDER'):
+                    self.padDetected = True
+                    self.landingStatus = 'SECOND_BORDER'
+                    # self.heightDrone += PAD_HEIGHT
+                    # mc.up(PAD_HEIGHT)
+                elif(self.landingStatus == 'THIRD_BORDER'):
+                    self.padDetected = True
+                    self.landingStatus = 'FOURTH_BORDER'
+                    # self.heightDrone += PAD_HEIGHT
+                    # mc.up(PAD_HEIGHT)
+            else:
+                print("wrong state machine : detectPadBoarder")
+
+        self.lastZ = self.z
+
+    def landing(self,mc):
+        print(self.landingStatus)
+        if(self.padDetected == True):
+            self.padDetected = False
+            print('la vrai position du drone a la bordure : [%2.2f, %2.2f]' % (self.x, self.y))
+            self.padPos = [self.padPos[0] + (self.x +  + (0.1*OffSetLandDict[self.landPos[2]][0]))*dirToOrderDict[self.landPos[2]][0] , self.padPos[1] + (self.y +  + (0.1*OffSetLandDict[self.landPos[2]][1]))*dirToOrderDict[self.landPos[2]][1]]
+            print('pad Pos : [%2.2f, %2.2f]' % (self.padPos[0], self.padPos[1]))
+        if(self.landingStatus == 'FIRST_BORDER' or self.landingStatus == 'SECOND_BORDER'):
+            if(self.goTo([self.landPos[0] + 0.6*dirToOrderDict[self.landPos[2]][0], self.landPos[1] + 0.6*dirToOrderDict[self.landPos[2]][1]])):
+                if(self.landingStatus == 'FIRST_BORDER'):
+                    print('Didnt find second border')
+                    mc.land()
+                self.landingStatus = 'MOVING_TO_POS'
+                mc.stop()
+                # time.sleep(3) 
+                self.landPos = [(self.padPos[0]/2.)*(dirToOrderDict[self.landPos[2]][0]) + (self.x + 0.3)*(dirToOrderDict[self.landPos[2]][1]), (self.padPos[1]/2.)*(dirToOrderDict[self.landPos[2]][1]) + (self.y + 0.3)*(dirToOrderDict[self.landPos[2]][0]), self.landPos[2]]
+        elif(self.landingStatus == 'MOVING_TO_POS'):
+            print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
+            if(self.goTo([self.landPos[0], self.landPos[1]])):
+                self.landingStatus = 'SEARCH_THIRD_BORDER'
+                mc.stop()
+                # time.sleep(3)
+                self.landPos = [(self.padPos[0]/2.)*dirToOrderDict[self.landPos[2]][0] + (self.x - 0.7)*dirToOrderDict[self.landPos[2]][1], (self.padPos[1]/2.)*dirToOrderDict[self.landPos[2]][1] + (self.y - 0.7)*dirToOrderDict[self.landPos[2]][0], self.landPos[2]]
+        elif(self.landingStatus == 'SEARCH_THIRD_BORDER' or self.landingStatus == 'THIRD_BORDER' or self.landingStatus == 'FOURTH_BORDER'):
+            if(self.goTo([self.landPos[0], self.landPos[1]])):
+                if(self.landingStatus != 'FOURTH_BORDER'):
+                    print('Didnt find fourth border')
+                    mc.land()
+                self.landingStatus = 'LAND'
+                self.landPos = [(self.padPos[0]/2.), (self.padPos[1]/2.) + (0.1*OffSetLandDict[self.landPos[2]][1]), self.landPos[2]]
+                mc.stop()
+                # time.sleep(3)
+        elif(self.landingStatus == 'LAND'):
+            print('acutal pos : [%2.2f, %2.2f],     desired pos :[%2.2f, %2.2f]' % (self.x, self.y, self.landPos[0], self.landPos[1]))
+            if(self.goTo([self.landPos[0] , self.landPos[1]])):
+                mc.land()
+                print('success')
+        else:
             print('Wrong state machine : Landing')
 
     def goTo(self, pos) :
@@ -295,202 +336,120 @@ class LoggingExample:
                     self.exploreStatus = 'BACK'
                     self.counter += 1
 
-            
+
     def obstacleAvoidance_forward(self, mc):
         print('obstacle avoidance')
         print(self.statusManoeuvre)
         if(self.statusManoeuvre == 1):
             if(self.front < TRESHOLD):
->>>>>>> Stashed changes
                 mc.start_left(velocity=0.2)
-                if self.z < 585:
-                    self.direction=LEFT
-                    self.landing(mc)
-                if(self.logs[self.count][4] < 300):
-                    self.obstacleAvoidance_left(mc)
-            elif((-self.y+y0<=0) and (self.step==0)):
-                self.step=1
-            if((self.x < self.x_zone+0.3) and (self.step==1)):
-                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-            elif((self.x >= self.x_zone+0.3) and (self.step==1)):
-                self.step=2
-            if((-self.y+y0 < 0.4) and (self.step==2)):
+            else :
+                self.goalPos = [self.x, self.y+0.07]
+                self.statusManoeuvre = 2
+        elif(self.statusManoeuvre == 2):
+            if(self.goalPos[1] > self.y):
+                mc.start_left(velocity=0.2)
+            else:
+                self.statusManoeuvre = 3
+                self.goalPos = [self.x + 0.3, self.y]
+        elif(self.statusManoeuvre == 3):
+            if(self.right < TRESHOLD or (self.x < self.goalPos[0] and self.front > TRESHOLD)):
+                mc.start_forward(velocity=0.2)
+            else:
+                self.goalPos = [self.x + 0.1, self.y]
+                self.statusManoeuvre = 4
+        elif(self.statusManoeuvre == 4):
+            if(self.goalPos[0] > self.x):
+                mc.start_forward(velocity=0.2)
+            else:
+                self.statusManoeuvre = 5
+                self.goalPos = [self.x, self.lastPos[1]]
+        elif(self.statusManoeuvre == 5):
+            if(self.right < TRESHOLD):
+                self.statusManoeuvre = 3
+            elif(self.goalPos[1] < self.y):
                 mc.start_right(velocity=0.2)
-                if self.z < 585:
-                    self.direction=RIGHT
-                    self.landing(mc)
-                if(self.logs[self.count][5] < 300):
-                    self.obstacleAvoidance_right(mc)
-            elif((-self.y+y0 >= 0.4) and (self.step==2)):
-                self.step=3
-            if(self.x < self.x_zone+0.6 and self.step==3):  
-                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)                
-            elif(self.x >= self.x_zone+0.6 and self.step==3):
-                self.step=4
-            if(-self.y+y0>0 and self.step==4):
-                mc.start_left(velocity=0.2)
-                if self.z < 585:
-                    self.direction=LEFT
-                    self.landing(mc)
-                if(self.logs[self.count][4] < 300):
-                    self.obstacleAvoidance_left(mc)
-            elif(-self.y+y0<=0 and self.step==4):
-                self.step=5
-            if(self.x < self.x_zone+0.9 and self.step==5):
-                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-            elif(self.x >= self.x_zone+0.9 and self.step==5):
-                self.step=6
-            if(-self.y+y0 < 0.4 and self.step==6):
-                mc.start_right(velocity=0.2)
-                if self.z < 585:
-                    self.direction=RIGHT
-                    self.landing(mc)
-                if(self.logs[self.count][5] < 300):
-                    self.obstacleAvoidance_right(mc)
-            elif(-self.y+y0 >= 0.4 and self.step==6):
-                self.step=7
-            if(self.x < self.x_zone+1.2 and self.step==7):
-                mc.move_distance(distance_x_m= 0.3, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
-            if(self.x > self.x_zone+1.2 and self.step==7):
-                self.step=8
-            if(-self.y+y0>0 and self.step==8):
-                mc.start_left(velocity=0.2)
-                if self.z < 585:
-                    self.direction=LEFT
-                    self.landing(mc)
-                if(self.logs[self.count][4] < 300):
-                    self.obstacleAvoidance_left(mc)
-            elif(-self.y+y0<=0 and self.step==8):
-                mc.land()
-        
+            else :
+                self.obstacleDetected = None
+                self.statusManoeuvre = 1
 
-    def landing(self, mc):      #Fonction called when landing pad is detected below the drone
-        
-        print('la fct de balou elle est éclaté')
-        if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 0:
-            mc.stop()
-            self.landing_state = 1
-
-        if self.landing_state == 1:
-
-            if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
-                mc.back(0.15, velocity = 0.5)      #Check when the drone start going backaward, what's the distance to be in center of the landing pad (I assumed 15cm)
-                mc.start_right(velocity = 0.5)
-                self.direction = RIGHT
-            elif self.direction == BACKWARD:
-                mc.forward(0.15, velocity = 0.5)
-                mc.start_right(velocity = 0.5)
-                self.direction = RIGHT
-            elif self.direction == RIGHT:
-                mc.left(0.15, velocity = 0.5)
-                mc.start_forward(velocity = 0.5)
-                self.direction = FORWARD
-            elif self.direction == LEFT:
-                mc.right(0.15, velocity = 0.5)
-                mc.start_forward(velocity = 0.5)
-                self.direction = FORWARD
-
-            self.landing_state = 2
-
-
-        if self.z > HEIGHT_DRONE*1.1 and self.landing_state == 2:
-            mc.stop()
-            self.landing_state = 3
-            
-        if self.landing_state == 3:
-
-            if self.direction == FORWARD:                       #Go back to center of landing pad, depending on where the drone came from and update the direction variable
-                mc.back(0.15, velocity = 0.5)
-            elif self.direction == RIGHT:
-                mc.left(0.15, velocity = 0.5)
-
-
-            self.direction = 0
-            mc.stop()
-            mc.land()
-            #self.explorationState = startingPadDetected
-            self.landing_state = 0                              #Drone landed on the landing pad, variabe reinint for next call of the function
-
-
-        return None
-
-    # def returnToStart(self, start):
-    #     while ( self.logs[self.count][0] > start[0]):
-    #         if (self.logs[self.count][3]>400):
-    #             LoggingExample.obstacleAvoidance_forward()
-    #         else :
-    #             MotionCommander.start_forward(velocity=0.2)
-    #     if (self.logs[self.count][1] < start[1]):
-    #         while (self.logs[self.count][1] < start[1]):
-    #             if (self.logs[self.count][4]>400):
-    #                 LoggingExample.obstacleAvoidance_left()
-    #             else :
-    #                 MotionCommander.start_left(velocity=0.2)
-    #     else:
-    #         while (self.logs[self.count][1] > start[1]):
-    #             if (self.logs[self.count][5]>400):
-    #                 LoggingExample.obstacleAvoidance_right()
-    #             else :
-    #                 MotionCommander.start_right(velocity=0.2)
-    #     self.explorationState = startingPadDetected
-    #     return None
-
-    def obstacleAvoidance_forward(self, mc):  
-        print('AVOIDANCE1')
-        y1 = self.logs[self.count][1]
-        while (self.logs[self.count][3] < 300):
-            mc.start_left(velocity=0.2)
-            print('AVOIDANCE1.0')
-            print(self.logs[self.count][3])
-        mc.left(distance_m = 0.07, velocity=0.2)
-        mc.forward(distance_m= 0.3,velocity=0.2)
-        while (self.logs[self.count][5] < 500):
-            print(self.logs[self.count][4])
-            mc.start_forward(velocity=0.2)
-        mc.forward(distance_m= 0.1,velocity=0.2)
-        mc.right(distance_m = -y1+self.logs[self.count][1],velocity=0.2)
-
-    def obstacleAvoidance_left(self, mc): 
+    def obstacleAvoidance_left(self, mc):
         x1 = self.logs[self.count][0]
         while(self.logs[self.count][4] < 300):
-            print('AVOIDANCE_left')
-            print('sensor = ', self.logs[self.count][4] )
             mc.start_forward(velocity=0.2)
         mc.move_distance(distance_x_m= 0.1, distance_y_m = 0, distance_z_m = 0,velocity=0.2)
         mc.move_distance(distance_x_m= 0, distance_y_m = 0.3, distance_z_m = 0,velocity=0.2)
         while(self.logs[self.count][6] < 300):
-            print('AVOIDANCE2.1')
             mc.start_left(velocity=0.2)
         mc.move_distance(distance_x_m= 0, distance_y_m = 0.1, distance_z_m = 0,velocity=0.2)
         mc.move_distance(distance_x_m= x1-self.logs[self.count][0], distance_y_m = 0, distance_z_m = 0,velocity=0.2)
+        self.obstacleDetected = None
 
-    def obstacleAvoidance_right(self,mc): 
-        print('AVOIDANCE3')
- 
+    def obstacleAvoidance_right(self,mc):
+
         x1 = self.logs[self.count][0]
         while (self.logs[self.count][5] < 300):
             print(self.logs[self.count][5])
             mc.start_forward(velocity=0.2)
-            print('AVOIDANCE3.0')
         mc.forward(distance_m= 0.1, velocity=0.2)
         mc.right(distance_m = 0.3, velocity=0.2)
         while (self.logs[self.count][6] < 400):
             mc.start_right(velocity=0.2)
-            print('AVOIDANCE3.1')
             print(self.logs[self.count][6])
         print('xm = ', x1-self.logs[self.count][0])
         print('x1 = ', x1)
         print('x_pos', self.logs[self.count][0])
         mc.right(distance_m = 0.1, velocity=0.2)
         mc.back(distance_m= -x1+self.logs[self.count][0], velocity=0.2)
+        self.obstacleDetected = None
 
-    def obstacleAvoidance():
-        return None
-    def test(self, mc):
-        mc.start_forward(0.2)
-        if(self.logs[self.count][3] < 300):
-            self.obstacleAvoidance_forward(mc)
+    def obstacleAvoidance_back(self, mc):
+        print('tbd')
+        self.obstacleDetected = None
 
+    def obstacleAvoidanceFunc(self,mc):
+
+        if(self.obstacleDetected is None):
+            if(self.front < TRESHOLD) :
+                self.obstacleDetected = 'FRONT'
+            elif(self.left < TRESHOLD) :
+                self.obstacleDetected = 'LEFT'
+            elif(self.right < TRESHOLD) :
+                self.obstacleDetected = 'RIGHT'
+            elif(self.back < TRESHOLD) :
+                #self.obstacleDetected = 'BACK'
+                print('tbd')
+            if(self.obstacleDetected is not None):
+                self.lastPos = [self.x, self.y]
+
+        if(self.obstacleDetected is not None) :
+            if(self.obstacleDetected == 'FRONT'):
+                self.obstacleAvoidance_forward(mc)
+            if(self.obstacleDetected == 'LEFT'):
+                self.obstacleAvoidance_left(mc)
+            if(self.obstacleDetected == 'RIGHT'):
+                self.obstacleAvoidance_right(mc)
+            if(self.obstacleDetected == 'BACK'):
+                self.obstacleAvoidance_back(mc)
+        elif((self.explorationState != 'LANDED') and (self.explorationState != 'FINISH')) :
+            if(self.V_ref[1] == 'FRONT') :
+                mc.start_forward(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'LEFT') :
+                 mc.start_left(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'RIGHT') :
+                 mc.start_right(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'BACK') :
+                 mc.start_back(velocity=self.V_ref[0])
+
+    def updateSensorValue(self):
+        data = self.logs[self.count][:]
+        self.x = data[0] + X0
+        self.y = data[1] + Y0
+        self.z = data[2]
+        self.front = data[3]
+        self.left = data[4]
+        self.right = data[5]
+        self.back = data[6]
 
     def flySearch(self, id):
         """ Example of simple logico to make the drone fly in a square
@@ -501,45 +460,15 @@ class LoggingExample:
             with MotionCommander(scf) as mc:
                 x0 = 0.3
                 y0 = 0.45
-                mc.up(0.3)
-                time.sleep(2)
+                mc.up((self.heightDrone/1000.) - 0.3)
+                time.sleep(1)
+                while(self.z > (self.heightDrone + 5) or self.z < (self.heightDrone - 5)) :
+                    self.updateSensorValue()
+                    time.sleep(0.01)
+                    print('Stabilizing height, z :',self.z)
                 # while(self.explorationState != finish):
+                time.sleep(1)
                 while(1):
-<<<<<<< Updated upstream
-                    time.sleep(0.1)
-                    data = self.logs[self.count][:]
-                    self.x = data[0]
-                    self.y = data[1]
-                    self.z = data[2]
-                    self.front = data[3]
-                    self.left = data[4]
-                    self.right = data[5]
-                    self.back = data[6]
-                    self.landing_state = 0
-                    self.direction = 0
-                    # if self.z < 280:
-                    #     print('STOP')
-                    #     mc.land()        
-                    #     # self._disconnected
-
-
-                    # print('z =', self.z)
-                    # if(self.explorationState == start):
-                    self.explore(x0,y0,mc)
-                    #self.test(mc)
-                    #print('step:', self.step)
-                    #print(self.logs[self.count][6])
-                    # elif(self.explorationState == landingPadDetected):
-                    #     self.landing()
-                    # elif(self.explorationState == return):
-                    #     self.returnToStart()
-                    # elif(self.explorationState == startingPadDetected):
-                    #     self.landing()
-                    # elif(self.explorationState == finish):
-                    #     self._disconnected
-                    # else :
-                    #     print("Error : wrong state machine")
-=======
                     time.sleep(0.01)
 
                     self.updateSensorValue()
@@ -561,7 +490,6 @@ class LoggingExample:
                         print("Error : wrong state machine")
 
                     self.obstacleAvoidanceFunc(mc)
->>>>>>> Stashed changes
 
         self._disconnected
 if __name__ == '__main__':
