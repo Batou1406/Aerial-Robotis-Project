@@ -15,6 +15,7 @@ uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
 logging.basicConfig(level=logging.ERROR)
 
 # Treshold define
+GOTO_TOL = 0.03
 TRESHOLD = 300 #treshold pour le contournement de l'obstalce
 TRESHOLD_MIN = 200 #va dans la direction oppose à l'obstacle, peut-importe la direction
 PAD_TRESHOLD_RISE = 12
@@ -124,8 +125,7 @@ class Drone:
 
         #return to start variables
         self.counter = 0
-        self.x_desired_return = X0
-        self.y_desired_return = Y0
+        self.desiredReturnPos = [0,0]
 
         self.flySearch(link_id)
 
@@ -290,22 +290,22 @@ class Drone:
         else:
             speed_applied = GOTOSPEED/3
 
-        if(self.x > pos[0] + 0.03):
+        if(self.x > pos[0] + GOTO_TOL):
             self.V_ref = [speed_applied, 'BACK']
             return False
-        elif(self.x < pos[0] - 0.03):
+        elif(self.x < pos[0] - GOTO_TOL):
             self.V_ref = [speed_applied, 'FRONT']
             return False
-        elif(self.y > pos[1] + 0.03):
+        elif(self.y > pos[1] + GOTO_TOL):
             self.V_ref = [speed_applied, 'RIGHT']
             return False
-        elif(self.y < pos[1] - 0.03):
+        elif(self.y < pos[1] - GOTO_TOL):
             self.V_ref = [speed_applied, 'LEFT']
             return False
         else :
             return True
 
-    def returnToStart(self, mc):
+    def returnToStart(self):
         print('counter = ', self.counter)
         print(self.exploreStatus)
         if (self.goTo([X0, Y0]) and self.counter == 0):
@@ -314,30 +314,29 @@ class Drone:
 
         if self.counter > 0:
             if(self.exploreStatus == 'BACK'):
-                if(self.goTo([self.x_desired_return - 0.2*self.counter, self.y_desired_return])):
+                if(self.goTo(self.desiredReturnPos)):
                     self.exploreStatus = 'LEFT'
-                    self.x_desired_return = self.x
-                    self.y_desired_return = self.y
+                    self.desiredReturnPos = [self.x, self.y + 0.2*self.counter]
 
-            if(self.exploreStatus == 'LEFT'):
-                if(self.goTo([self.x_desired_return, self.y_desired_return + 0.2*self.counter])):
+            elif(self.exploreStatus == 'LEFT'):
+                if(self.goTo(self.desiredReturnPos)):
                     self.exploreStatus = 'FRONT'
-                    self.x_desired_return = self.x
-                    self.y_desired_return = self.y
+                    self.desiredReturnPos = [self.x + 0.2*self.counter, self.y]
                     self.counter += 1
 
-            if(self.exploreStatus == 'FRONT'):
-                if(self.goTo([self.x_desired_return + 0.2*self.counter, self.y_desired_return])):
-                    self.x_desired_return = self.x
-                    self.y_desired_return = self.y
+            elif(self.exploreStatus == 'FRONT'):
+                if(self.goTo(self.desiredReturnPos)):
+                    self.desiredReturnPos = [self.x, self.y - 0.2*self.counter]
                     self.exploreStatus = 'RIGHT'
 
-            if(self.exploreStatus == 'RIGHT'):
-                if(self.goTo([self.x_desired_return, self.y_desired_return - 0.2*self.counter])):
-                    self.x_desired_return = self.x
-                    self.y_desired_return = self.y
+            elif(self.exploreStatus == 'RIGHT'):
+                if(self.goTo(self.desiredReturnPos)):
+                    self.desiredReturnPos = [self.x - 0.2*self.counter, self.y]
                     self.exploreStatus = 'BACK'
                     self.counter += 1
+
+            else :
+                print('wrong state machine : return to start')
 
     def obstacleDodge(self):
         """Permet de contourner l'obstacle
@@ -377,6 +376,7 @@ class Drone:
         1. Vérifie s'il y a un obstalce sur le chemin -> si oui, lance obstacleDodge pour l'éviter (garde en mémoire l'état)
         2. s'éloigne des obstacles TROP proches
         3. applique la vitesse de référence au drone """
+        #détecte si on "découvre" un obstacle de face
         if(self.obstacleDetected is None):
             if(self.front < TRESHOLD and self.V_ref[1] == 'FRONT') :
                 self.obstacleDetected = 'FRONT'
@@ -389,6 +389,7 @@ class Drone:
             if(self.obstacleDetected is not None):
                 self.lastPos = [self.x, self.y]
 
+        # gère l'évitement de l'obstacle de face
         if(self.obstacleDetected is not None) :
             self.obstacleDodge()
 
@@ -454,7 +455,7 @@ class Drone:
                         self.landing()
                     elif(self.explorationState == 'RETURN'):
                         self.explorationState == 'FINISH'
-                        # self.returnToStart()
+                        self.returnToStart()
                     elif(self.explorationState == 'STARTINGPADDETECTED'):
                         self.landing()
                     elif((self.explorationState == 'FINISH') or (self.explorationState == 'LANDED')):
