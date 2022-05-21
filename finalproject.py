@@ -343,33 +343,34 @@ class Drone:
         1. on se décale tant qu'on détécte l'obstacle de face, puis encore de 7cm
         2. on avance de 7cm, puis tant qu'on détécte l'obstacle sur le té-co, puis encore de 7cm
         3. on se recentre (uniquement le long de la coordonée d'intéret)"""
-        print('obstacle avoidance')
         capteurFace = [self.front, self.left, self.back, self.right][dictAvoid[self.obstacleDetected][5]]
         capteurSide = [self.front, self.left, self.back, self.right][dictAvoid[self.obstacleDetected][6]]
         if(self.statusManoeuvre == 0): # Manoeuvre pour éviter l'osbtacle qui est de face
             if(capteurFace < TRESHOLD): # Tant qu'on détecte l'obstacle en face on avance sur le té-co et on reset l'objectif 7cm plus loin (sur le té-co)
                 self.V_ref = [AVOIDSPEED, dictAvoid[self.obstacleDetected][self.statusManoeuvre]]
-                self.goalPos = [self.x + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
+                self.goalPos = [self.x + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
             else: # On détecte plus l'objectif sur en face, alors on move à l'objectif qui est 7cm plus loin
                 if(self.goTo(self.goalPos)): #On a move de 7cm sur le té-co, alors on fixe l'objectif 7cm devant et on passe au point suivant
                     self.statusManoeuvre = 1
-                    self.goalPos = [self.x + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0]] #7cm de plus du côté où il VA d'aller
+                    self.goalPos = [self.x + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] #7cm de plus du côté où il VA d'aller
+                    print("First border avoided, actual pos :", [self.x, self.y], 'desired pos :', self.goalPos)
         elif(self.statusManoeuvre == 1): #l'obstacle sur le téco
             if(capteurFace < TRESHOLD):#on redétècte l'obstacle en face -> retour au début, on s'est pas assez décalé
                 self.statusManoeuvre = 0
-            elif(capteurside < TRESHOLD): # Tant qu'on détecte l'obstacle sur le té-co, on avance et on reset l'objectif 7cm plus loin (devant)
+            elif(capteurSide < TRESHOLD): # Tant qu'on détecte l'obstacle sur le té-co, on avance et on reset l'objectif 7cm plus loin (devant)
                 self.V_ref = [AVOIDSPEED, dictAvoid[self.obstacleDetected][self.statusManoeuvre]] #ligne 'direction de l'obstacle' dans le dictionnaire, colone/indice 'statusManoeuvre'
-                self.goalPos = [self.x + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.07*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
+                self.goalPos = [self.x + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
             else: #on ne détecte PAS ENCORE ou PLUS l'objectif sur le té-co, donc on move de 7cm en avant (une fois au début, une fois à la fin).
                 if(self.goTo(self.goalPos)): # on a move de 7cm et donc dépassé l'obstacle, on passe au point suivant et l'objectif au point de départ de l'obstalce avoidance sera fixé après (pour permettre de pas être coincé par le goTo en refreshant l'objectif)
                     self.statusManoeuvre = 2
         elif(self.statusManoeuvre == 2): # manoeuvre finale, on se redecale pour atteindre la position de départ.
             if(capteurSide < TRESHOLD): # On redecte l'obstacle sur le té-co, retour a l'étape précédante, on a pas assez avancé
                 self.statusManoeuvre = 1
-            self.goalPos = [ self.x*dictAvoid[self.obstacleDetected][4] + self.lastPos[0]*dictAvoid[self.obstacleDetected][3], self.y*dictAvoid[self.obstacleDetected][3] + self.lastPos[1]*dictAvoid[self.obstacleDetected][4]] #position pour le faire revenir là où il avait commencé à éviter l'obstacle, on refresh parce que la position est importante seulement dans une des deux coordonées, il doit pouvoir avancer (grâce à l'évitement des obtsalces vraiment trop près) si l'obstalce est de biais
+            self.goalPos = [ self.x*dictAvoid[self.obstacleDetected][3] + self.lastPos[0]*dictAvoid[self.obstacleDetected][4], self.y*dictAvoid[self.obstacleDetected][4] + self.lastPos[1]*dictAvoid[self.obstacleDetected][3]] #position pour le faire revenir là où il avait commencé à éviter l'obstacle, on refresh parce que la position est importante seulement dans une des deux coordonées, il doit pouvoir avancer (grâce à l'évitement des obtsalces vraiment trop près) si l'obstalce est de biais
             if(self.goTo(self.goalPos)): #On a atteind la position du début et dépassé l'obstacle. Fin de l'obstacle avoidance
                 self.statusManoeuvre = 0
                 self.obstacleDetected = None
+        #print('obstacle :',self.obstacleDetected,', statusManoeuvre :', self.statusManoeuvre,'   , direction :',self.V_ref[1])
 
     def obstacleAvoidance(self,mc):
         """ Fonction qui applique la vitesse au drone en fonction de la référence et des obstacles
@@ -418,6 +419,7 @@ class Drone:
             mc.land()
         else:
             print('wrong state machine : obstacle avoidance')
+        print('obstacle :',self.obstacleDetected,', statusManoeuvre :', self.statusManoeuvre,'   , direction :',self.V_ref[1], ',   position :',[self.x, self.y])
 
     def updateSensorValue(self):
         data = self.logs[self.count][:]
@@ -445,12 +447,12 @@ class Drone:
                     time.sleep(0.01)
 
                     self.updateSensorValue()
-                    self.detectPadBorder()
+                    #self.detectPadBorder()
 
-                    print(self.explorationState,', z :',self.z)
+                    #print(self.explorationState,', z :',self.z,'    Direction :', self.V_ref[1])
                     if(self.explorationState == 'START'):
                         #self.explore()
-                        self.V_ref = [0.5, 'FRONT']
+                        self.V_ref = [0.3, 'RIGHT']
                     elif(self.explorationState == 'LANDINGPADDETECTED'):
                         self.landing()
                     elif(self.explorationState == 'RETURN'):
