@@ -17,23 +17,26 @@ logging.basicConfig(level=logging.ERROR)
 # Treshold define
 GOTO_TOL = 0.03
 TRESHOLD = 300 #treshold pour le contournement de l'obstalce
-TRESHOLD_MIN = 200 #va dans la direction oppose à l'obstacle, peut-importe la direction
-PAD_TRESHOLD_RISE = 12
+TRESHOLD_MIN = 150 #va dans la direction oppose à l'obstacle, peut-importe la direction
+PAD_TRESHOLD_RISE = 18
 PAD_TRESHOLD_FALL = 15
+ZSPEEDTRESHOLD = 0.09
 
 # Map define
 PAD_HEIGHT = 0.1
-X0 = 0.3
-Y0 = 0.75
-START_ZONE_X = 2
+X0 = 0.85
+Y0 = 1.5
+START_ZONE_X = 3.5
+RETURN_ZONE_X = 1.5
 MAP_SIZE_X = 5
-MAP_SIZE_Y = 1.5
+MAP_SIZE_Y = 3
 
 #speed define
-EXPLORESPEED = 0.5
-LANDINGSPEED = 0.5
-GOTOSPEED = 0.5
+EXPLORESPEED = 0.4
+LANDINGSPEED = 0.4
+GOTOSPEED = 0.4
 AVOIDSPEED = 0.2
+
 
 #Dictonnary
 dirToOrderDict = {
@@ -91,6 +94,8 @@ class Drone:
 
         #general usage variable
         self.V_ref = [0, None]
+        self.X0 = X0
+        self.Y0 = Y0
 
         #obstacle avoidance variable
         self.lastPos = [0,0]
@@ -100,18 +105,18 @@ class Drone:
 
         # Explore variable
         self.explorePos = [0,0]
+        self.xSave = 0
         self.exploreStatus = 'LEFT'
 
         # Landing variable
         self.landingStatus = 'LAND'
-        self.padDetected = False
         self.x_pad1=0
         self.y_pad1=0
         self.memory = 0
         self.case = 0
 
         #return to start variables
-        self.counter = 0
+        self.counter = -1
         self.desiredReturnPos = [0,0]
 
         self.flySearch(link_id)
@@ -181,76 +186,76 @@ class Drone:
                 else :
                     if(self.y < MAP_SIZE_Y/2.):
                         self.exploreStatus = 'LEFT'
+                        self.xSave = self.x
                     else :
                         self.exploreStatus = 'RIGHT'
+                        self.xSave = self.x
             elif(self.exploreStatus == 'LEFT'):
                 if(self.y < MAP_SIZE_Y) :
                     self.V_ref = [EXPLORESPEED, 'LEFT']
                 else :
                     self.exploreStatus = 'FRONT'
-                    self.explorePos = [self.x + 0.2, self.y]
+                    self.explorePos = [self.xSave + 0.5, self.y]
             elif(self.exploreStatus == 'RIGHT'):
                 if(self.y > 0) :
                     self.V_ref = [EXPLORESPEED, 'RIGHT']
                 else :
                     self.exploreStatus = 'FRONT'
-                    self.explorePos = [self.x + 0.2]
+                    self.explorePos = [self.xSave + 0.5]
             else :
                 print('wrong state machine : explore')
 
     def detectPadBorder(self):
-        if((self.speedZ > 0.08) and self.obstacleDetected is None):# and ((self.lastZ-self.z) > 0.05)): #On détecte un Rise -> on monte sur le PAD
-            if(self.explorationState == 'START') :
+        if((self.speedZ > ZSPEEDTRESHOLD) and (self.obstacleDetected is None)):# and ((self.lastZ-self.z) > 0.05)): #On détecte un Rise -> on monte sur le PAD
+        #if((self.lastZ - self.z) > PAD_TRESHOLD_RISE):
+            if(self.explorationState == 'START' and self.x > START_ZONE_X) :
                 print('PAD DETECTED')
                 self.explorationState = 'LANDINGPADDETECTED'
                 self.landingStatus = 'FIRST_BORDER'
-                self.padDetected = True
-            elif(self.explorationState == 'RETURN'):
+            elif(self.explorationState == 'RETURN' and self.x < RETURN_ZONE_X):
                 self.explorationState = 'STARTINGPADDETECTED'
                 self.landingStatus = 'FIRST_BORDER'
-                self.padDetected = True
             elif(self.landingStatus == 'SEARCH_SECOND_BORDER'):
                 self.landingStatus = 'SECOND_BORDER'
-                self.padDetected = True
 
         #a voir si on va s'en servir
         self.lastZ = self.z
 
     def landing(self):
         if(self.case==0):
-            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'FRONT' and self.padDetected == True):
+            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'FRONT'):
                 self.x_pad1=self.x
                 self.memory=self.y
                 self.case=1
                 print('first_border')
-            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'BACK' and self.padDetected == True):
+            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'BACK'):
                 self.x_pad1=self.x
                 self.memory=self.y
                 self.case=3
                 print('first_border')
-            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'LEFT' and self.padDetected == True):
+            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'LEFT'):
                 self.y_pad1=self.y
                 self.memory=self.x
                 self.case=5
                 print('first_border')
-            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'RIGHT' and self.padDetected == True):
+            if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'RIGHT'):
                 self.y_pad1=self.y
                 self.memory=self.x
                 self.case=7
                 print('first_border')
-            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'RIGHT' and self.padDetected == True):
+            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'RIGHT'):
                 self.y_pad1=self.y
                 self.case=2
                 print('second_border')
-            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'LEFT' and self.padDetected == True):
+            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'LEFT'):
                 self.y_pad1=self.y
                 self.case=4
                 print('second_border')
-            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'BACK' and self.padDetected == True):
+            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'BACK'):
                 self.x_pad1=self.x
                 self.case=6
                 print('second_border')
-            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'FRONT' and self.padDetected == True):
+            if (self.landingStatus == 'SECOND_BORDER' and self.V_ref[1] == 'FRONT'):
                 self.x_pad1=self.x
                 self.case=8
                 print('second_border')
@@ -347,6 +352,21 @@ class Drone:
     def returnToStart(self):
         print('counter = ', self.counter)
         print(self.exploreStatus)
+
+        if (self.counter == -1 and self.x > X0):
+            self.V_ref = [EXPLORESPEED, 'BACK']
+            self.counter = 0
+
+        if (self.counter == 0 and self.y > Y0):
+            self.V_ref = [EXPLORESPEED, 'RIGHT']
+        if (self.counter == 0 and self.y < Y0):
+            self.V_ref = [EXPLORESPEED, 'LEFT']
+
+        if((self.counter == 0) and (Y0 -0.05 < self.y < Y0 + 0.05)):
+            self.counter = 1
+            self.exploreStatus == 'BACK'
+
+
         if (self.goTo([X0, Y0]) and self.counter == 0):
             self.counter = 1
             self.exploreStatus == 'BACK'
@@ -382,23 +402,24 @@ class Drone:
         1. on se décale tant qu'on détécte l'obstacle de face, puis encore de 7cm
         2. on avance de 7cm, puis tant qu'on détécte l'obstacle sur le té-co, puis encore de 7cm
         3. on se recentre (uniquement le long de la coordonée d'intéret)"""
+        print('Obstacle dodging')
         capteurFace = [self.front, self.left, self.back, self.right][dictAvoid[self.obstacleDetected][5]]
         capteurSide = [self.front, self.left, self.back, self.right][dictAvoid[self.obstacleDetected][6]]
         if(self.statusManoeuvre == 0): # Manoeuvre pour éviter l'osbtacle qui est de face
             if(capteurFace < TRESHOLD): # Tant qu'on détecte l'obstacle en face on avance sur le té-co et on reset l'objectif 7cm plus loin (sur le té-co)
                 self.V_ref = [AVOIDSPEED, dictAvoid[self.obstacleDetected][self.statusManoeuvre]]
-                self.goalPos = [self.x + 0.25*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.25*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
+                self.goalPos = [self.x + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
             else: # On détecte plus l'objectif sur en face, alors on move à l'objectif qui est 7cm plus loin
                 if(self.goTo(self.goalPos)): #On a move de 7cm sur le té-co, alors on fixe l'objectif 7cm devant et on passe au point suivant
                     self.statusManoeuvre = 1
-                    self.goalPos = [self.x + 0.25*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.25*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] #7cm de plus du côté où il VA d'aller
+                    self.goalPos = [self.x + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] #7cm de plus du côté où il VA d'aller
                     print("First border avoided, actual pos :", [self.x, self.y], 'desired pos :', self.goalPos)
         elif(self.statusManoeuvre == 1): #l'obstacle sur le téco
             if(capteurFace < TRESHOLD):#on redétècte l'obstacle en face -> retour au début, on s'est pas assez décalé
                 self.statusManoeuvre = 0
             elif(capteurSide < TRESHOLD): # Tant qu'on détecte l'obstacle sur le té-co, on avance et on reset l'objectif 7cm plus loin (devant)
                 self.V_ref = [AVOIDSPEED, dictAvoid[self.obstacleDetected][self.statusManoeuvre]] #ligne 'direction de l'obstacle' dans le dictionnaire, colone/indice 'statusManoeuvre'
-                self.goalPos = [self.x + 0.25*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.25*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
+                self.goalPos = [self.x + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][0], self.y + 0.2*dirToOrderDict[dictAvoid[self.obstacleDetected][self.statusManoeuvre]][1]] # tant qu'il detecte il fixe son obj 7cm de plus du côté où il est entrain d'aller
             else: #on ne détecte PAS ENCORE ou PLUS l'objectif sur le té-co, donc on move de 7cm en avant (une fois au début, une fois à la fin).
                 if(self.goTo(self.goalPos)): # on a move de 7cm et donc dépassé l'obstacle, on passe au point suivant et l'objectif au point de départ de l'obstalce avoidance sera fixé après (pour permettre de pas être coincé par le goTo en refreshant l'objectif)
                     self.statusManoeuvre = 2
@@ -417,10 +438,11 @@ class Drone:
         2. s'éloigne des obstacles TROP proches
         3. applique la vitesse de référence au drone """
         if(self.V_ref[1] == 'LAND'):
+            [self.X0, self.Y0] = [self.x, self.y]
             mc.land()
             self.explorationState = dictNextState[self.explorationState]
             return
-            
+
         #détecte si on "découvre" un obstacle de face
         if(self.obstacleDetected is None):
             if(self.front < TRESHOLD and self.V_ref[1] == 'FRONT') :
@@ -465,8 +487,8 @@ class Drone:
 
     def updateSensorValue(self):
         data = self.logs[self.count][:]
-        self.x = data[0] + X0 #add offset
-        self.y = data[1] + Y0
+        self.x = data[0] + self.X0 #add offset
+        self.y = data[1] + self.Y0
         self.z = data[2]
         self.front = data[3]
         self.left = data[4]
@@ -480,10 +502,10 @@ class Drone:
             with MotionCommander(scf, default_height=(self.heightDrone/1000.)) as mc:
                 time.sleep(1)
 
-                while(self.z > (self.heightDrone + 5) or self.z < (self.heightDrone - 5)) :
-                    self.updateSensorValue()
-                    time.sleep(0.01)
-                    print('Stabilizing height, z :',self.z)
+                #while(self.z > (self.heightDrone + 5) or self.z < (self.heightDrone - 5)) :
+                    #self.updateSensorValue()
+                    #time.sleep(0.01)
+                    #print('Stabilizing height, z :',self.z)
 
                 while(self.explorationState != 'FINISH'):
                     startTime = time.time()
@@ -491,16 +513,16 @@ class Drone:
                     self.updateSensorValue()
                     self.detectPadBorder()
 
-                    print(self.explorationState,', z :',self.z,'    Direction :', self.V_ref[1])
                     if(self.explorationState == 'START'):
                         self.explore()
                     elif(self.explorationState == 'LANDINGPADDETECTED'):
                         self.landing()
                     elif(self.explorationState == 'LANDED'):
                         time.sleep(5)
-                        mc.up(0.6)
+                        mc.take_off(height=self.heightDrone/1000.)
                         self.V_ref[1] = 'STOP'
                         self.explorationState = 'RETURN'
+
                     elif(self.explorationState == 'RETURN'):
                         self.returnToStart()
                     elif(self.explorationState == 'STARTINGPADDETECTED'):
@@ -509,6 +531,8 @@ class Drone:
                         self._disconnected
                     else :
                         print("Error : wrong state machine")
+
+                    print(self.explorationState,', z :',self.z,'    Direction :', self.V_ref[1], '[x y]', [self.x, self.y])
 
                     self.obstacleAvoidance(mc)
                     nowTime = time.time()
