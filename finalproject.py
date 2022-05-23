@@ -20,22 +20,25 @@ TRESHOLD = 300 #treshold pour le contournement de l'obstalce
 TRESHOLD_MIN = 150 #va dans la direction oppose à l'obstacle, peut-importe la direction
 PAD_TRESHOLD_RISE = 18
 PAD_TRESHOLD_FALL = 15
-ZSPEEDTRESHOLD = 0.09
+ZSPEEDTRESHOLD = 0.12
+SIDE_MARGIN = 0.1
+FACE_MARGIN = 0.2
+MPAD = 0.08
 
 # Map define
 PAD_HEIGHT = 0.1
-X0 = 0.85
-Y0 = 1.5
-START_ZONE_X = 3.5
+X0 = 0.5
+Y0 = 0.75
+START_ZONE_X = 2.5
 RETURN_ZONE_X = 1.5
-MAP_SIZE_X = 5
-MAP_SIZE_Y = 3
+MAP_SIZE_X = 4
+MAP_SIZE_Y = 1.5
 
 #speed define
 EXPLORESPEED = 0.4
 LANDINGSPEED = 0.4
-GOTOSPEED = 0.4
-AVOIDSPEED = 0.2
+GOTOSPEED = 0.5
+AVOIDSPEED = 0.3
 
 
 #Dictonnary
@@ -102,6 +105,7 @@ class Drone:
         self.goalPos = [0,0]
         self.statusManoeuvre = 0 #[0, 1 ,2] -> obstacle de face, de té-co, derrière
         self.obstacleDetected = None #[None, 'FRONT', 'LEFT', 'RIGHT', 'BACK']
+        self.directionChange = None
 
         # Explore variable
         self.explorePos = [0,0]
@@ -184,6 +188,7 @@ class Drone:
                 if(self.explorePos[0] > self.x) :
                     self.V_ref = [EXPLORESPEED, 'FRONT']
                 else :
+                    self.obstacleDetected = None
                     if(self.y < MAP_SIZE_Y/2.):
                         self.exploreStatus = 'LEFT'
                         self.xSave = self.x
@@ -195,18 +200,18 @@ class Drone:
                     self.V_ref = [EXPLORESPEED, 'LEFT']
                 else :
                     self.exploreStatus = 'FRONT'
-                    self.explorePos = [self.xSave + 0.5, self.y]
+                    self.explorePos = [self.xSave + 0.2, self.y]
             elif(self.exploreStatus == 'RIGHT'):
                 if(self.y > 0) :
                     self.V_ref = [EXPLORESPEED, 'RIGHT']
                 else :
                     self.exploreStatus = 'FRONT'
-                    self.explorePos = [self.xSave + 0.5]
+                    self.explorePos = [self.xSave + 0.2, self.y]
             else :
                 print('wrong state machine : explore')
 
     def detectPadBorder(self):
-        if((self.speedZ > ZSPEEDTRESHOLD) and (self.obstacleDetected is None)):# and ((self.lastZ-self.z) > 0.05)): #On détecte un Rise -> on monte sur le PAD
+        if((self.speedZ > ZSPEEDTRESHOLD) and (self.obstacleDetected is None) and (self.directionChange is None)):# and ((self.lastZ-self.z) > 0.05)): #On détecte un Rise -> on monte sur le PAD
         #if((self.lastZ - self.z) > PAD_TRESHOLD_RISE):
             if(self.explorationState == 'START' and self.x > START_ZONE_X) :
                 print('PAD DETECTED')
@@ -266,9 +271,9 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref[1] = 'RIGHT'
+                self.V_ref = [LANDINGSPEED,'RIGHT']
         if(self.case==2):
-            if(self.goTo([self.x_pad1+0.10, self.y_pad1-0.10])==False and self.landingStatus == 'SECOND_BORDER'):
+            if(self.goTo([self.x_pad1+MPAD, self.y_pad1-MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1+0.10, self.y_pad1-0.10, 'position:', self.x, self.y)
             else:
                 self.case=0
@@ -279,9 +284,9 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref[1] = 'LEFT'
+                self.V_ref = [LANDINGSPEED,'LEFT']
         if(self.case==4):
-            if(self.goTo([self.x_pad1-0.10, self.y_pad1+0.10])==False and self.landingStatus == 'SECOND_BORDER'):
+            if(self.goTo([self.x_pad1-MPAD, self.y_pad1+MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.y_pad1+0.10, 'position:', self.x, self.y)
             else:
                 self.case=0
@@ -292,9 +297,9 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref[1] = 'BACK'
+                self.V_ref = [LANDINGSPEED,'BACK']
         if(self.case==6):
-            if(self.goTo([self.x_pad1-0.10, self.y_pad1+0.10])==False and self.landingStatus == 'SECOND_BORDER'):
+            if(self.goTo([self.x_pad1-MPAD, self.y_pad1+MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.y_pad1+0.10, 'position:', self.x, self.y)
             else:
                 self.case=0
@@ -305,9 +310,9 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref[1] = 'FRONT'
+                self.V_ref = [LANDINGSPEED,'FRONT']
         if(self.case==8):
-            if(self.goTo([self.x_pad1+0.10, self.y_pad1-0.10])==False and self.landingStatus == 'SECOND_BORDER'):
+            if(self.goTo([self.x_pad1+MPAD, self.y_pad1-MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1+0.10, self.y_pad1-0.10, 'position:', self.x, self.y)
             else:
                 self.case=0
@@ -318,9 +323,9 @@ class Drone:
 
     def goTo(self, pos) :
         dist = abs(self.x - pos[0])
-        if dist < 0.15:
-            speed_applied = 0.2*GOTOSPEED
-        elif dist < 0.5:
+        if dist < 0.1:
+            speed_applied = 0.3*GOTOSPEED
+        elif dist < 0.3:
             speed_applied = 0.6*GOTOSPEED
         else :
             speed_applied = GOTOSPEED
@@ -333,10 +338,10 @@ class Drone:
             return False
 
         dist = abs(self.y - pos[1])
-        if dist < 0.2:
-            speed_applied = 0.2*GOTOSPEED
-        elif dist < 0.5:
-            speed_applied = 0.5*GOTOSPEED
+        if dist < 0.1:
+            speed_applied = 0.3*GOTOSPEED
+        elif dist < 0.3:
+            speed_applied = 0.6*GOTOSPEED
         else :
             speed_applied = GOTOSPEED
 
@@ -355,6 +360,9 @@ class Drone:
 
         if (self.counter == -1 and self.x > X0):
             self.V_ref = [EXPLORESPEED, 'BACK']
+
+
+        if((self.counter == -1) and (X0 -0.05 < self.x < X0 + 0.05)):
             self.counter = 0
 
         if (self.counter == 0 and self.y > Y0):
@@ -365,37 +373,209 @@ class Drone:
         if((self.counter == 0) and (Y0 -0.05 < self.y < Y0 + 0.05)):
             self.counter = 1
             self.exploreStatus == 'BACK'
-
-
-        if (self.goTo([X0, Y0]) and self.counter == 0):
-            self.counter = 1
-            self.exploreStatus == 'BACK'
+            self.desiredReturnPos = [self.x - 0.2*self.counter, self.y]
 
         if self.counter > 0:
             if(self.exploreStatus == 'BACK'):
-                if(self.goTo(self.desiredReturnPos)):
+                self.V_ref = [EXPLORESPEED, 'BACK']
+                if (self.x < self.desiredReturnPos[0]):
                     self.exploreStatus = 'LEFT'
                     self.desiredReturnPos = [self.x, self.y + 0.2*self.counter]
 
             elif(self.exploreStatus == 'LEFT'):
-                if(self.goTo(self.desiredReturnPos)):
+                self.V_ref = [EXPLORESPEED, 'LEFT']
+                if (self.y > self.desiredReturnPos[1]):
                     self.exploreStatus = 'FRONT'
                     self.desiredReturnPos = [self.x + 0.2*self.counter, self.y]
                     self.counter += 1
 
             elif(self.exploreStatus == 'FRONT'):
-                if(self.goTo(self.desiredReturnPos)):
+                self.V_ref = [EXPLORESPEED, 'FRONT']
+                if (self.x > self.desiredReturnPos[0]):
                     self.desiredReturnPos = [self.x, self.y - 0.2*self.counter]
                     self.exploreStatus = 'RIGHT'
 
             elif(self.exploreStatus == 'RIGHT'):
-                if(self.goTo(self.desiredReturnPos)):
+                self.V_ref = [EXPLORESPEED, 'RIGHT']
+                if (self.y < self.desiredReturnPos[1]):
                     self.desiredReturnPos = [self.x - 0.2*self.counter, self.y]
                     self.exploreStatus = 'BACK'
                     self.counter += 1
 
             else :
                 print('wrong state machine : return to start')
+
+
+    def obstacleDodge_forward(self):
+        print('obstacle dodge forward')
+        print(self.statusManoeuvre)
+
+        #sécurité : si on a mal éviter l'obstacle
+        if(self.front < TRESHOLD):
+            self.statusManoeuvre = 'FACE'
+        if(self.right < TRESHOLD):
+            self.statusManoeuvre = 'SIDE'
+
+        #début de l'algo
+        if(self.statusManoeuvre == 'FACE'): #obstacle de Face
+            if(self.front < TRESHOLD):
+                self.V_ref = [AVOIDSPEED,'LEFT']
+            else :
+                self.goalPos = [self.x, self.y + SIDE_MARGIN]
+                self.statusManoeuvre = 'AFTER_FACE'
+        elif(self.statusManoeuvre == 'AFTER_FACE'): #on se décale un peu plus
+            if(self.goalPos[1] > self.y):
+                self.V_ref = [AVOIDSPEED,'LEFT']
+            else:
+                self.statusManoeuvre = 'SIDE'
+                self.goalPos = [self.x + FACE_MARGIN, self.y]
+        elif(self.statusManoeuvre == 'SIDE'): #obstacle de coté
+            if(self.right < TRESHOLD or (self.x < self.goalPos[0] and self.front > TRESHOLD)):
+                self.V_ref = [AVOIDSPEED, 'FRONT']
+            else:
+                self.goalPos = [self.x + SIDE_MARGIN, self.y]
+                self.statusManoeuvre = 'AFTER_SIDE'
+        elif(self.statusManoeuvre == 'AFTER_SIDE'):
+            if(self.goalPos[0] > self.x):
+                self.V_ref = [AVOIDSPEED,'FRONT']
+            else:
+                self.statusManoeuvre = 'GO_BACK_MIDDLE'
+                self.goalPos = [self.x, self.lastPos[1]]
+        elif(self.statusManoeuvre == 'GO_BACK_MIDDLE'):
+            if(self.goalPos[1] < self.y):
+                self.V_ref = [AVOIDSPEED, 'RIGHT']
+            else :
+                self.obstacleDetected = None
+                self.statusManoeuvre = 'FACE'
+
+    def obstacleDodge_left(self):
+        print('obstacle dodge left')
+        print(self.statusManoeuvre)
+
+        #sécurité : si on a mal éviter l'obstacle
+        if(self.left < TRESHOLD):
+            self.statusManoeuvre = 'FACE'
+        if(self.front < TRESHOLD):
+            self.statusManoeuvre = 'SIDE'
+
+        #début de l'algo
+        if(self.statusManoeuvre == 'FACE'): #obstacle de Face
+            if(self.left < TRESHOLD):
+                self.V_ref = [AVOIDSPEED,'BACK']
+            else :
+                self.goalPos = [self.x - SIDE_MARGIN, self.y]
+                self.statusManoeuvre = 'AFTER_FACE'
+        elif(self.statusManoeuvre == 'AFTER_FACE'): #on se décale un peu plus
+            if(self.goalPos[0] < self.x):
+                self.V_ref = [AVOIDSPEED,'BACK']
+            else:
+                self.statusManoeuvre = 'SIDE'
+                self.goalPos = [self.x, self.y + FACE_MARGIN]
+        elif(self.statusManoeuvre == 'SIDE'): #obstacle de coté
+            if(self.front < TRESHOLD or (self.y < self.goalPos[1] and self.left > TRESHOLD)):
+                self.V_ref = [AVOIDSPEED, 'LEFT']
+            else:
+                self.goalPos = [self.x, self.y + SIDE_MARGIN]
+                self.statusManoeuvre = 'AFTER_SIDE'
+        elif(self.statusManoeuvre == 'AFTER_SIDE'):
+            if(self.goalPos[1] > self.y):
+                self.V_ref = [AVOIDSPEED,'LEFT']
+            else:
+                self.statusManoeuvre = 'GO_BACK_MIDDLE'
+                self.goalPos = [self.lastPos[0], self.y]
+        elif(self.statusManoeuvre == 'GO_BACK_MIDDLE'):
+            if(self.goalPos[0] > self.x):
+                self.V_ref = [AVOIDSPEED, 'FRONT']
+            else :
+                self.obstacleDetected = None
+                self.statusManoeuvre = 'FACE'
+
+    def obstacleDodge_right(self):
+        print('obstacle dodge right')
+        print(self.statusManoeuvre)
+
+        #sécurité : si on a mal éviter l'obstacle
+        if(self.right < TRESHOLD):
+            self.statusManoeuvre = 'FACE'
+        if(self.front < TRESHOLD):
+            self.statusManoeuvre = 'SIDE'
+
+        #début de l'algo
+        if(self.statusManoeuvre == 'FACE'): #obstacle de Face
+            if(self.right < TRESHOLD):
+                self.V_ref = [AVOIDSPEED,'BACK']
+            else :
+                self.goalPos = [self.x - SIDE_MARGIN, self.y]
+                self.statusManoeuvre = 'AFTER_FACE'
+        elif(self.statusManoeuvre == 'AFTER_FACE'): #on se décale un peu plus
+            if(self.goalPos[0] < self.x):
+                self.V_ref = [AVOIDSPEED,'BACK']
+            else:
+                self.statusManoeuvre = 'SIDE'
+                self.goalPos = [self.x, self.y - FACE_MARGIN]
+        elif(self.statusManoeuvre == 'SIDE'): #obstacle de coté
+            if(self.front < TRESHOLD or (self.y > self.goalPos[1] and self.right > TRESHOLD)):
+                self.V_ref = [AVOIDSPEED, 'RIGHT']
+            else:
+                self.goalPos = [self.x, self.y - SIDE_MARGIN]
+                self.statusManoeuvre = 'AFTER_SIDE'
+        elif(self.statusManoeuvre == 'AFTER_SIDE'):
+            if(self.goalPos[1] < self.y):
+                self.V_ref = [AVOIDSPEED,'RIGHT']
+            else:
+                self.statusManoeuvre = 'GO_BACK_MIDDLE'
+                self.goalPos = [self.lastPos[0], self.y]
+        elif(self.statusManoeuvre == 'GO_BACK_MIDDLE'):
+            if(self.goalPos[0] > self.x):
+                self.V_ref = [AVOIDSPEED, 'FRONT']
+            else :
+                self.obstacleDetected = None
+                self.statusManoeuvre = 'FACE'
+
+    def obstacleDodge_back(self):
+        print('obstacle dodge back')
+        print(self.statusManoeuvre)
+
+        #sécurité : si on a mal éviter l'obstacle
+        if(self.back < TRESHOLD):
+            self.statusManoeuvre = 'FACE'
+        if(self.right < TRESHOLD):
+            self.statusManoeuvre = 'SIDE'
+
+        #début de l'algo
+        if(self.statusManoeuvre == 'FACE'): #obstacle de Face
+            if(self.back < TRESHOLD):
+                self.V_ref = [AVOIDSPEED,'LEFT']
+            else :
+                self.goalPos = [self.x, self.y + SIDE_MARGIN]
+                self.statusManoeuvre = 'AFTER_FACE'
+        elif(self.statusManoeuvre == 'AFTER_FACE'): #on se décale un peu plus
+            if(self.goalPos[1] > self.y):
+                self.V_ref = [AVOIDSPEED,'LEFT']
+            else:
+                self.statusManoeuvre = 'SIDE'
+                self.goalPos = [self.x - FACE_MARGIN, self.y]
+        elif(self.statusManoeuvre == 'SIDE'): #obstacle de coté
+            if(self.right < TRESHOLD or (self.x > self.goalPos[0] and self.front > TRESHOLD)):
+                self.V_ref = [AVOIDSPEED, 'BACK']
+            else:
+                self.goalPos = [self.x - SIDE_MARGIN, self.y]
+                self.statusManoeuvre = 'AFTER_SIDE'
+        elif(self.statusManoeuvre == 'AFTER_SIDE'):
+            if(self.goalPos[0] < self.x):
+                self.V_ref = [AVOIDSPEED,'BACK']
+            else:
+                self.statusManoeuvre = 'GO_BACK_MIDDLE'
+                self.goalPos = [self.x, self.lastPos[1]]
+        elif(self.statusManoeuvre == 'GO_BACK_MIDDLE'):
+            if(self.goalPos[1] < self.y):
+                self.V_ref = [AVOIDSPEED, 'RIGHT']
+            else :
+                self.obstacleDetected = None
+                self.statusManoeuvre = 'FACE'
+
+
+
 
     def obstacleDodge(self):
         """Permet de contourner l'obstacle
@@ -437,6 +617,13 @@ class Drone:
         1. Vérifie s'il y a un obstalce sur le chemin -> si oui, lance obstacleDodge pour l'éviter (garde en mémoire l'état)
         2. s'éloigne des obstacles TROP proches
         3. applique la vitesse de référence au drone """
+        if(self.directionChange is not None):
+            print('Direction change : ', self.directionChange)
+            self.directionChange += 1
+            if(self.directionChange > 50):
+                self.directionChange = None
+
+
         if(self.V_ref[1] == 'LAND'):
             [self.X0, self.Y0] = [self.x, self.y]
             mc.land()
@@ -458,17 +645,28 @@ class Drone:
 
         # gère l'évitement de l'obstacle de face
         if(self.obstacleDetected is not None) :
-            self.obstacleDodge()
+            if(self.obstacleDetected == 'FRONT'):
+                self.obstacleDodge_forward()
+            if(self.obstacleDetected == 'LEFT'):
+                self.obstacleDodge_left()
+            if(self.obstacleDetected == 'RIGHT'):
+                self.obstacleDodge_right()
+            if(self.obstacleDetected == 'BACK'):
+                self.obstacleDodge_back()
 
         #permet d'éviter les obstalces TROP proche, dans toutes les directions, actif tout le temps
         if(self.front < TRESHOLD_MIN):
             self.V_ref = [AVOIDSPEED, 'BACK']
+            self.directionChange = 1
         elif(self.left < TRESHOLD_MIN):
             self.V_ref = [AVOIDSPEED, 'RIGHT']
+            self.directionChange = 1
         elif(self.right < TRESHOLD_MIN):
             self.V_ref = [AVOIDSPEED, 'LEFT']
+            self.directionChange = 1
         elif(self.back < TRESHOLD_MIN):
             self.V_ref = [AVOIDSPEED, 'FRONT']
+            self.directionChange = 1
 
         # Set la vitesse
         if(self.V_ref[1] == 'FRONT') :
@@ -532,7 +730,7 @@ class Drone:
                     else :
                         print("Error : wrong state machine")
 
-                    print(self.explorationState,', z :',self.z,'    Direction :', self.V_ref[1], '[x y]', [self.x, self.y])
+                    print(self.explorationState,', z :',self.z,'    Z speed :', self.speedZ,'    Direction :', self.V_ref[1], '[x y]', [self.x, self.y])
 
                     self.obstacleAvoidance(mc)
                     nowTime = time.time()
