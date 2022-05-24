@@ -11,7 +11,8 @@ from cflib.utils import uri_helper
 from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
 from cflib.positioning.motion_commander import MotionCommander
 
-uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
+#uri = uri_helper.uri_from_env(default='radio://0/70/2M/E7E7E7E73')
+uri = uri_helper.uri_from_env(default='radio://0/90/2M/E7E7E7E719')
 logging.basicConfig(level=logging.ERROR)
 
 # Treshold define
