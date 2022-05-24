@@ -272,9 +272,14 @@ class Drone:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
                 self.V_ref = [LANDINGSPEED,'RIGHT']
+                self.directionChange = 1
         if(self.case==2):
             if(self.goTo([self.x_pad1+MPAD, self.y_pad1-MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1+0.10, self.y_pad1-0.10, 'position:', self.x, self.y)
+                if(self.directionChange is not None):
+                    self.directionChange+=1
+                if(self.directionChange > FRAMEARATER):
+                    self.directionChange = None
             else:
                 self.case=0
                 self.V_ref[1] = 'LAND'
