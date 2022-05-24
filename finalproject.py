@@ -20,14 +20,15 @@ TRESHOLD = 300 #treshold pour le contournement de l'obstalce
 TRESHOLD_MIN = 150 #va dans la direction oppose à l'obstacle, peut-importe la direction
 PAD_TRESHOLD_RISE = 18
 PAD_TRESHOLD_FALL = 15
-ZSPEEDTRESHOLD = 0.12
+ZSPEEDTRESHOLD = 0.1
 SIDE_MARGIN = 0.1
 FACE_MARGIN = 0.2
 MPAD = 0.12
+FRAMEARATER = 4
 
 # Map define
-X0 = 0.3
-Y0 = 2.5
+X0 = 0.42
+Y0 = 2.25
 START_ZONE_X = 3.5
 RETURN_ZONE_X = 1.5
 MAP_SIZE_X = 5
@@ -268,28 +269,33 @@ class Drone:
         if(self.case==1):
             if(self.goTo([self.x_pad1+0.12, self.memory+0.50])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.x_pad1+0.10, self.memory+0.50, 'position:', self.x, self.y)
+                self.directionChange = 1
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
                 self.V_ref = [LANDINGSPEED,'RIGHT']
-                self.directionChange = 1
-        if(self.case==2):
-            if(self.goTo([self.x_pad1+MPAD, self.y_pad1-MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
-                print('desired:', self.x_pad1+0.10, self.y_pad1-0.10, 'position:', self.x, self.y)
                 if(self.directionChange is not None):
                     self.directionChange+=1
                 if(self.directionChange > FRAMEARATER):
                     self.directionChange = None
+        if(self.case==2):
+            if(self.goTo([self.x_pad1+MPAD, self.y_pad1-MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
+                print('desired:', self.x_pad1+0.10, self.y_pad1-0.10, 'position:', self.x, self.y)
             else:
                 self.case=0
                 self.V_ref[1] = 'LAND'
         if(self.case==3):
             if(self.goTo([self.x_pad1-0.12, self.memory-0.50])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.memory-0.50, 'position:', self.x, self.y)
+                self.directionChange = 1
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
                 self.V_ref = [LANDINGSPEED,'LEFT']
+                if(self.directionChange is not None):
+                    self.directionChange+=1
+                if(self.directionChange > FRAMEARATER):
+                    self.directionChange = None
         if(self.case==4):
             if(self.goTo([self.x_pad1-MPAD, self.y_pad1+MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.y_pad1+0.10, 'position:', self.x, self.y)
@@ -299,10 +305,15 @@ class Drone:
         if(self.case==5):
             if(self.goTo([self.memory+0.50, self.y_pad1+0.12])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.memory+0.50, self.y_pad1+0.10, 'position:', self.x, self.y)
+                self.directionChange = 1
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
                 self.V_ref = [LANDINGSPEED,'BACK']
+                if(self.directionChange is not None):
+                    self.directionChange+=1
+                if(self.directionChange > FRAMEARATER):
+                    self.directionChange = None
         if(self.case==6):
             if(self.goTo([self.x_pad1-MPAD, self.y_pad1+MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.y_pad1+0.10, 'position:', self.x, self.y)
@@ -312,10 +323,15 @@ class Drone:
         if(self.case==7):
             if(self.goTo([self.memory-0.50, self.y_pad1-0.12])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.memory-0.50, self.y_pad1-0.10, 'position:', self.x, self.y)
+                self.directionChange = 1
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
                 self.V_ref = [LANDINGSPEED,'FRONT']
+                if(self.directionChange is not None):
+                    self.directionChange+=1
+                if(self.directionChange > FRAMEARATER):
+                    self.directionChange = None
         if(self.case==8):
             if(self.goTo([self.x_pad1+MPAD, self.y_pad1-MPAD])==False and self.landingStatus == 'SECOND_BORDER'):
                 print('desired:', self.x_pad1+0.10, self.y_pad1-0.10, 'position:', self.x, self.y)
