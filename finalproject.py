@@ -23,21 +23,20 @@ PAD_TRESHOLD_FALL = 15
 ZSPEEDTRESHOLD = 0.12
 SIDE_MARGIN = 0.1
 FACE_MARGIN = 0.2
-MPAD = 0.08
+MPAD = 0.12
 
 # Map define
-PAD_HEIGHT = 0.1
-X0 = 0.5
-Y0 = 0.75
-START_ZONE_X = 2.5
+X0 = 0.3
+Y0 = 2.5
+START_ZONE_X = 3.5
 RETURN_ZONE_X = 1.5
-MAP_SIZE_X = 4
-MAP_SIZE_Y = 1.5
+MAP_SIZE_X = 5
+MAP_SIZE_Y = 3
 
 #speed define
 EXPLORESPEED = 0.4
 LANDINGSPEED = 0.4
-GOTOSPEED = 0.5
+GOTOSPEED = 0.7
 AVOIDSPEED = 0.3
 
 
@@ -97,6 +96,7 @@ class Drone:
 
         #general usage variable
         self.V_ref = [0, None]
+        self.lastV_ref = [0, None]
         self.X0 = X0
         self.Y0 = Y0
 
@@ -266,7 +266,7 @@ class Drone:
                 print('second_border')
 
         if(self.case==1):
-            if(self.goTo([self.x_pad1+0.10, self.memory+0.50])==False and self.landingStatus == 'FIRST_BORDER'):
+            if(self.goTo([self.x_pad1+0.12, self.memory+0.50])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.x_pad1+0.10, self.memory+0.50, 'position:', self.x, self.y)
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
@@ -279,7 +279,7 @@ class Drone:
                 self.case=0
                 self.V_ref[1] = 'LAND'
         if(self.case==3):
-            if(self.goTo([self.x_pad1-0.10, self.memory-0.50])==False and self.landingStatus == 'FIRST_BORDER'):
+            if(self.goTo([self.x_pad1-0.12, self.memory-0.50])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.memory-0.50, 'position:', self.x, self.y)
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
@@ -292,7 +292,7 @@ class Drone:
                 self.case=0
                 self.V_ref[1] = 'LAND'
         if(self.case==5):
-            if(self.goTo([self.memory+0.50, self.y_pad1+0.10])==False and self.landingStatus == 'FIRST_BORDER'):
+            if(self.goTo([self.memory+0.50, self.y_pad1+0.12])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.memory+0.50, self.y_pad1+0.10, 'position:', self.x, self.y)
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
@@ -305,7 +305,7 @@ class Drone:
                 self.case=0
                 self.V_ref[1] = 'LAND'
         if(self.case==7):
-            if(self.goTo([self.memory-0.50, self.y_pad1-0.10])==False and self.landingStatus == 'FIRST_BORDER'):
+            if(self.goTo([self.memory-0.50, self.y_pad1-0.12])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.memory-0.50, self.y_pad1-0.10, 'position:', self.x, self.y)
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
@@ -642,6 +642,9 @@ class Drone:
                 self.obstacleDetected = 'BACK'
             if(self.obstacleDetected is not None):
                 self.lastPos = [self.x, self.y]
+            if((self.x > RETURN_ZONE_X) and (self.statusManoeuvre == 'GO_BACK_MIDDLE') and (self.explorationState == 'RETURN')):
+                self.obstacleDetected = None
+                self.statusManoeuvre = 'FACE'
 
         # gère l'évitement de l'obstacle de face
         if(self.obstacleDetected is not None) :
@@ -669,18 +672,20 @@ class Drone:
             self.directionChange = 1
 
         # Set la vitesse
-        if(self.V_ref[1] == 'FRONT') :
-            mc.start_forward(velocity=self.V_ref[0])
-        elif(self.V_ref[1] == 'LEFT') :
-            mc.start_left(velocity=self.V_ref[0])
-        elif(self.V_ref[1] == 'RIGHT') :
-            mc.start_right(velocity=self.V_ref[0])
-        elif(self.V_ref[1] == 'BACK') :
-            mc.start_back(velocity=self.V_ref[0])
-        elif(self.V_ref[1] == 'STOP'):
-            mc.stop()
-        else:
-            print('wrong state machine : obstacle avoidance')
+        if(self.lastV_ref != self.V_ref):
+            if(self.V_ref[1] == 'FRONT') :
+                mc.start_forward(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'LEFT') :
+                mc.start_left(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'RIGHT') :
+                mc.start_right(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'BACK') :
+                mc.start_back(velocity=self.V_ref[0])
+            elif(self.V_ref[1] == 'STOP'):
+                mc.stop()
+            else:
+                print('wrong state machine : obstacle avoidance')
+        self.lastV_ref = self.V_ref
         #print('obstacle :',self.obstacleDetected,', statusManoeuvre :', self.statusManoeuvre,'   , direction :',self.V_ref[1], ',   position :',[self.x, self.y])
 
     def updateSensorValue(self):
@@ -716,7 +721,7 @@ class Drone:
                     elif(self.explorationState == 'LANDINGPADDETECTED'):
                         self.landing()
                     elif(self.explorationState == 'LANDED'):
-                        time.sleep(5)
+                        time.sleep(0.1)
                         mc.take_off(height=self.heightDrone/1000.)
                         self.V_ref[1] = 'STOP'
                         self.explorationState = 'RETURN'
@@ -730,7 +735,7 @@ class Drone:
                     else :
                         print("Error : wrong state machine")
 
-                    print(self.explorationState,', z :',self.z,'    Z speed :', self.speedZ,'    Direction :', self.V_ref[1], '[x y]', [self.x, self.y])
+                    print(self.explorationState,', z : %2.2f' % self.z,'    Z speed : %2.2f' % self.speedZ,'    Direction : ', self.V_ref[1], '[x y] : [%2.2f, %2.2f]'% (self.x, self.y))
 
                     self.obstacleAvoidance(mc)
                     nowTime = time.time()
