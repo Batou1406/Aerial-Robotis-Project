@@ -16,7 +16,7 @@ uri = uri_helper.uri_from_env(default='radio://0/90/2M/E7E7E7E719')
 logging.basicConfig(level=logging.ERROR)
 
 # Treshold define
-GOTO_TOL = 0.03
+GOTO_TOL = 0.015
 TRESHOLD = 300 #treshold pour le contournement de l'obstalce
 TRESHOLD_MIN = 150 #va dans la direction oppose à l'obstacle, peut-importe la direction
 PAD_TRESHOLD_RISE = 18
@@ -28,15 +28,15 @@ MPAD = 0.08
 FRAMEARATER = 4
 
 # Map define
-X0 = 0.47
-Y0 = 2.25
+X0 = 0.5
+Y0 = 0.6
 START_ZONE_X = 3.5
 RETURN_ZONE_X = 1.5
 MAP_SIZE_X = 5
 MAP_SIZE_Y = 3
 
 #speed define
-EXPLORESPEED = 0.4
+EXPLORESPEED = 0.5
 LANDINGSPEED = 0.4
 GOTOSPEED = 0.7
 AVOIDSPEED = 0.3
@@ -111,7 +111,7 @@ class Drone:
         # Explore variable
         self.explorePos = [0,0]
         self.xSave = 0
-        self.exploreStatus = 'LEFT'
+        self.exploreStatus = 'FRONT'
 
         # Landing variable
         self.landingStatus = 'LAND'
@@ -119,6 +119,8 @@ class Drone:
         self.y_pad1=0
         self.memory = 0
         self.case = 0
+        self.counterStop = 0
+        self.saveV_ref = self.V_ref
 
         #return to start variables
         self.counter = -1
@@ -214,7 +216,7 @@ class Drone:
                 print('wrong state machine : explore')
 
     def detectPadBorder(self):
-        if((self.speedZ > ZSPEEDTRESHOLD) and (self.obstacleDetected is None)):# and ((self.lastZ-self.z) > 0.05)): #On détecte un Rise -> on monte sur le PAD
+        if((self.speedZ > ZSPEEDTRESHOLD) and (self.obstacleDetected is None) and (self.directionChange is None)):# and ((self.lastZ-self.z) > 0.05)): #On détecte un Rise -> on monte sur le PAD
         #if((self.lastZ - self.z) > PAD_TRESHOLD_RISE):
             if(self.explorationState == 'START' and self.x > START_ZONE_X) :
                 # print('PAD DETECTED')
@@ -233,21 +235,25 @@ class Drone:
         if(self.case==0):
             if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'FRONT'):
                 self.x_pad1=self.x
+                self.y_pad1=self.y
                 self.memory=self.y
                 self.case=1
                 # print('first_border')
             if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'BACK'):
                 self.x_pad1=self.x
+                self.y_pad1=self.y
                 self.memory=self.y
                 self.case=3
                 # print('first_border')
             if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'LEFT'):
                 self.y_pad1=self.y
+                self.x_pad1=self.x
                 self.memory=self.x
                 self.case=5
                 # print('first_border')
             if (self.landingStatus == 'FIRST_BORDER' and self.V_ref[1] == 'RIGHT'):
                 self.y_pad1=self.y
+                self.x_pad1=self.x
                 self.memory=self.x
                 self.case=7
                 # print('first_border')
@@ -267,6 +273,17 @@ class Drone:
                 self.x_pad1=self.x
                 self.case=8
                 # print('second_border')
+            if(self.landingStatus == 'SEARCH_SECOND_BORDER'):
+                print('Stopped', self.counterStop)
+                self.counterStop += 1
+                if(self.counterStop < 30):
+                    self.V_ref = [0,'STOP']
+                elif(self.counterStop > 280):
+                    if(self.goTo([self.x_pad1,self.y_pad1])):
+                        self.V_ref = [0.1,'LAND']
+                        self.counterStop = 0
+                else:
+                    self.V_ref = self.saveV_ref
 
         if(self.case==1):
             if(self.goTo([self.x_pad1+MPAD, self.memory+0.50])==False and self.landingStatus == 'FIRST_BORDER'):
@@ -275,7 +292,7 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref = [LANDINGSPEED,'RIGHT']
+                self.saveV_ref = [LANDINGSPEED,'RIGHT']
                 # if(self.directionChange is not None):
                 #     self.directionChange+=1
                 # if(self.directionChange > FRAMEARATER):
@@ -286,6 +303,7 @@ class Drone:
             else:
                 self.case=0
                 self.V_ref[1] = 'LAND'
+                self.counterStop = 0
         if(self.case==3):
             if(self.goTo([self.x_pad1-MPAD, self.memory-0.50])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.x_pad1-0.10, self.memory-0.50, 'position:', self.x, self.y)
@@ -293,7 +311,7 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref = [LANDINGSPEED,'LEFT']
+                self.saveV_ref = [LANDINGSPEED,'LEFT']
                 # if(self.directionChange is not None):
                 #     self.directionChange+=1
                 # if(self.directionChange > FRAMEARATER):
@@ -304,6 +322,7 @@ class Drone:
             else:
                 self.case=0
                 self.V_ref[1] = 'LAND'
+                self.counterStop = 0
         if(self.case==5):
             if(self.goTo([self.memory+0.50, self.y_pad1+MPAD])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.memory+0.50, self.y_pad1+0.10, 'position:', self.x, self.y)
@@ -311,7 +330,7 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref = [LANDINGSPEED,'BACK']
+                self.saveV_ref = [LANDINGSPEED,'BACK']
                 # if(self.directionChange is not None):
                 #     self.directionChange+=1
                 # if(self.directionChange > FRAMEARATER):
@@ -322,6 +341,7 @@ class Drone:
             else:
                 self.case=0
                 self.V_ref[1] = 'LAND'
+                self.counterStop = 0
         if(self.case==7):
             if(self.goTo([self.memory-0.50, self.y_pad1-MPAD])==False and self.landingStatus == 'FIRST_BORDER'):
                 print('desired:', self.memory-0.50, self.y_pad1-0.10, 'position:', self.x, self.y)
@@ -329,7 +349,7 @@ class Drone:
             else:
                 self.landingStatus = 'SEARCH_SECOND_BORDER'
                 self.case=0
-                self.V_ref = [LANDINGSPEED,'FRONT']
+                self.saveV_ref = [LANDINGSPEED,'FRONT']
                 # if(self.directionChange is not None):
                 #     self.directionChange+=1
                 # if(self.directionChange > FRAMEARATER):
@@ -340,6 +360,7 @@ class Drone:
             else:
                 self.case=0
                 self.V_ref[1] = 'LAND'
+                self.counterStop = 0
 
 
 
@@ -383,40 +404,32 @@ class Drone:
 
         if (self.counter == -1 and self.x > X0):
             self.V_ref = [EXPLORESPEED, 'BACK']
-            print('premier if')
         if((self.counter == -1) and (X0 -0.03 < self.x < X0 + 0.03)):
             self.counter = 0
             self.mem = self.y
-            print('deuxieme if')
-        if (self.counter == 0 and self.mem > Y0 and self.y > Y0-0.5):
+        if (self.counter == 0 and self.mem > Y0 and self.y > Y0-0.2):
             self.V_ref = [EXPLORESPEED, 'RIGHT']
             self.dir = 1
-            print('troisieme if')
-        if (self.counter == 0 and self.mem < Y0 and self.y < Y0 + 0.5):
+        if (self.counter == 0 and self.mem < Y0 and self.y < Y0 + 0.2):
             self.V_ref = [EXPLORESPEED, 'LEFT']
             self.dir = 2
-            print('quatrieme if')
 
         if (self.dir == 1):
-            if((self.counter == 0) and (Y0 -0.53 < self.y < Y0 - 0.47)):
+            if((self.counter == 0) and (Y0 -0.23 < self.y < Y0 - 0.17)):
                 self.counter = 1
                 self.exploreStatus == 'BACK'
                 self.desiredReturnPos = [self.x - 0.2*self.counter, self.y]
-                print('cinquieme if')
         if (self.dir == 2):
-            if((self.counter == 0) and (Y0 +0.47 < self.y < Y0 + 0.53)):
+            if((self.counter == 0) and (Y0 +0.17 < self.y < Y0 + 0.23)):
                 self.counter = 1
                 self.exploreStatus == 'BACK'
                 self.desiredReturnPos = [self.x - 0.2*self.counter, self.y]
-                print('cinquieme if')
         if (self.counter > 0):
             if(self.exploreStatus == 'BACK'):
                 self.V_ref = [EXPLORESPEED, 'BACK']
-                print('I AM BACK')
                 if (self.x < self.desiredReturnPos[0]):
                     self.exploreStatus = 'LEFT'
                     self.desiredReturnPos = [self.x, self.y + 0.2*self.counter]
-                    print('sixieme if')
 
             elif(self.exploreStatus == 'LEFT'):
                 self.V_ref = [EXPLORESPEED, 'LEFT']
