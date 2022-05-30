@@ -28,8 +28,8 @@ MPAD = 0.08
 FRAMEARATER = 4
 
 # Map define
-X0 = 0.5
-Y0 = 0.6
+X0 = 1
+Y0 = 2
 START_ZONE_X = 3.5
 RETURN_ZONE_X = 1.5
 MAP_SIZE_X = 5
